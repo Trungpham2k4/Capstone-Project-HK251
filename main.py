@@ -1,5 +1,4 @@
 """
-iredev_langgraph_agentexecutor.py
 LangGraph orchestration + LangChain AgentExecutor demo for iReDev workflow.
 
 Workflow:
@@ -12,10 +11,11 @@ SRS draft -> Reviewer -> Final SRS
 """
 
 import os
-from typing import TypedDict, List, Dict, Any
+from typing import TypedDict, List, Dict, Any, Annotated
 from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
 from dotenv import load_dotenv
-
+load_dotenv()
 
 from agents.interviewer_agent import make_interview_agent
 from agents.enduser_agent import make_enduser_agent
@@ -25,7 +25,7 @@ from agents.archivist_agent import make_archivist_agent
 from agents.reviewer_agent import make_reviewer_agent
 
 
-load_dotenv()
+
 
 # -------------------
 # Artifact Pool
@@ -42,6 +42,7 @@ class Artifact(TypedDict):
 
 class ArtifactPoolState(TypedDict):
     artifacts: List[Artifact]
+    # messages: Annotated[list, add_messages]
 
 # -------------------
 # Node functions
@@ -84,39 +85,39 @@ def deployer_node(state: ArtifactPoolState) -> ArtifactPoolState:
 
 def analyst_node(state: ArtifactPoolState) -> ArtifactPoolState:
     agent = make_analysis_agent()
-    agent.invoke({
-        "input": (
-            "Read UserRequirementList and OperatingEnvironmentList using ArtifactReaderTool. "
-            "Then call ArtifactWriterTool twice: once with JSON for SystemRequirementList, "
-            "and once for RequirementModel."
+
+    messages = {
+        "input" : (
+            "Please see the latest User Requirements List and Operating Environment List, and produce a consolidated System Requirements List and Requirements Model as your system message."
         )
-    })
-    return state
+    }
+
+    response = agent.invoke(messages)
+    return {"messages": [{"role": "assistant", "content": response.get("output")}]}
 
 def archivist_node(state: ArtifactPoolState) -> ArtifactPoolState:
+
+    messages = { 
+        "input" : (
+            "Please see the latest System Requirements List and Requirements Model, and draft a structured Software Requirements Specification (SRS) as your system message."
+        ) 
+    }
+
     agent = make_archivist_agent()
-    agent.invoke({
-        "input": (
-            "Read system_req_list and requirement_model with ArtifactReaderTool. "
-            "Generate a Software Requirement Specification (SRS). "
-            "Call ArtifactWriterTool with JSON like "
-            '{"id":"srs_draft","type":"SRS","content":"..."}'
-        )
-    })
-    return state
+    response = agent.invoke(messages)
+    return {"messages": [{"role": "assistant", "content": response.get("output")}]}
 
 def reviewer_node(state: ArtifactPoolState) -> ArtifactPoolState:
 
+    messages = { 
+        "input" : (
+            "Please review the latest SRS draft, fix any issues and output the revised software requirements specification."
+        ) 
+    }
+
     agent = make_reviewer_agent()
-    agent.invoke({
-        "input": (
-            "Read srs_draft using ArtifactReaderTool. "
-            "Review and improve it with feedback: Ensure OAuth2 and PCI compliance. "
-            "Then call ArtifactWriterTool with JSON like "
-            '{"id":"srs_final","type":"FinalSRS","content":"..."}'
-        )
-    })
-    return state
+    response = agent.invoke(messages)
+    return {"messages": [{"role": "assistant", "content": response.get("output")}]}
 
 # -------------------
 # Build LangGraph workflow
@@ -124,30 +125,32 @@ def reviewer_node(state: ArtifactPoolState) -> ArtifactPoolState:
 def build_and_run(input_text: str):
     graph = StateGraph(ArtifactPoolState)
 
-    graph.add_node("Interviewer", lambda st: interviewer_node(st, input_text))
-    graph.add_node("EndUser", lambda st: enduser_node(st))
-    graph.add_node("Deployer", lambda st: deployer_node(st))
+    # graph.add_node("Interviewer", lambda st: interviewer_node(st, input_text))
+    # graph.add_node("EndUser", lambda st: enduser_node(st))
+    # graph.add_node("Deployer", lambda st: deployer_node(st))
     graph.add_node("Analyst", lambda st: analyst_node(st))
     graph.add_node("Archivist", lambda st: archivist_node(st))
     graph.add_node("Reviewer", lambda st: reviewer_node(st))
 
     # parallel edges
-    graph.add_edge(START, "Interviewer")
-    graph.add_edge("Interviewer", "EndUser")
-    graph.add_edge("EndUser", "Interviewer")
-    graph.add_edge("Interviewer", "Deployer")
-    graph.add_edge("Deployer", "Interviewer")
+    # graph.add_edge(START, "Interviewer")
+    # graph.add_edge("Interviewer", "EndUser")
+    # graph.add_edge("EndUser", "Interviewer")
+    # graph.add_edge("Interviewer", "Deployer")
+    # graph.add_edge("Deployer", "Interviewer")
 
-    graph.add_edge("EndUser", "Analyst")
-    graph.add_edge("Deployer", "Analyst")
+    # graph.add_edge("EndUser", "Analyst")
+    # graph.add_edge("Deployer", "Analyst")
 
     # linear flow
+    graph.add_edge(START, "Analyst")
     graph.add_edge("Analyst", "Archivist")
     graph.add_edge("Archivist", "Reviewer")
     graph.add_edge("Reviewer", END)
 
     app = graph.compile()
-    init_state: ArtifactPoolState = {"artifacts":[]}
+    # init_state: ArtifactPoolState = {"artifacts":[]}
+    init_state: ArtifactPoolState = {"messages":[]}
     final_state = app.invoke(init_state)
     return final_state
 
@@ -157,10 +160,6 @@ def build_and_run(input_text: str):
 if __name__ == "__main__":
     input_text = "Build an online bookstore with secure payments and good search UX."
     final_state = build_and_run(input_text)
-
-    print("\n=== Final artifacts in pool ===")
-    for fname in os.listdir(ARTIFACT_DIR):
-        print("-", fname)
 
 
 ### TODO: Sửa lại phần update state của ArtifactPoolState trong mỗi node function để thêm artifact mới vào list artifacts.
