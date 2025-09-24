@@ -1,0 +1,8 @@
+langchain
+langchain-openai
+langchain-community
+langchain-anthropic
+pydantic
+python-dotenv
+langgraph
+faiss-cpu
