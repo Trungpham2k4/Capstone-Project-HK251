@@ -3,8 +3,12 @@ iredev_langgraph_agentexecutor.py
 LangGraph orchestration + LangChain AgentExecutor demo for iReDev workflow.
 
 Workflow:
-Input -> Interviewer node
-Interviewer -> (parallel and iterative) EndUser + Deployer -> Analyst -> Archivist -> Reviewer -> Final SRS
+Input -> Interviewer node 
+Interviewer <-> EndUser => Conditional edge to continue asking or go to ask Deployer -> Create UserRequirementList
+Interviewer <-> Deployer => Conditional edge to continue asking or go to Analyst -> Create OperatingEnvironmentList
+UserRequirementList + OperatingEnvironmentList -> Analyst -> Create SystemRequirementList + RequirementModel
+SystemRequirementList + RequirementModel -> Archivist -> Create SRS draft
+SRS draft -> Reviewer -> Final SRS
 """
 
 import os
@@ -123,7 +127,6 @@ def build_and_run(input_text: str):
     graph.add_node("Interviewer", lambda st: interviewer_node(st, input_text))
     graph.add_node("EndUser", lambda st: enduser_node(st))
     graph.add_node("Deployer", lambda st: deployer_node(st))
-    # graph.add_node("Join", lambda st: join_node(st))
     graph.add_node("Analyst", lambda st: analyst_node(st))
     graph.add_node("Archivist", lambda st: archivist_node(st))
     graph.add_node("Reviewer", lambda st: reviewer_node(st))
