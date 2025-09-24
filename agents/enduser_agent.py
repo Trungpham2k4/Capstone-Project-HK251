@@ -1,7 +1,7 @@
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain.prompts import ChatPromptTemplate
-from capstone_project_example.tools import Tools
+from tools import Tools
 
 
 llm = ChatOpenAI(model="gpt-5-nano", temperature=0, max_tokens=500)
@@ -55,8 +55,10 @@ def make_enduser_agent() -> AgentExecutor:
     )
 
 
-    return create_tool_calling_agent(
+    agent = create_tool_calling_agent(
         tools=Tools.tools,
         llm=llm,
         prompt=prompt
     )
+
+    return AgentExecutor(agent=agent, tools=Tools.tools, verbose=True)

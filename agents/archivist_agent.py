@@ -1,10 +1,10 @@
 from langchain_openai import ChatOpenAI
-from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain.agents import create_tool_calling_agent, AgentExecutor, create_openai_functions_agent
 from langchain.prompts import ChatPromptTemplate
-from capstone_project_example.tools import Tools
+from tools import Tools
 
 
-llm = ChatOpenAI(model="gpt-5-nano", temperature=0, max_tokens=500)
+llm = ChatOpenAI(model="gpt-5-nano", temperature=0)
 
 
 def make_archivist_agent() -> AgentExecutor:
@@ -42,18 +42,36 @@ def make_archivist_agent() -> AgentExecutor:
                 3. Check completeness and traceability.  
                 4. Finalize document with neutral, audit-ready phrasing.  
 
+                Input:
+                You MUST use the ArtifactReaderTool to read the latest system requirements list and model file named "System_Requirements_List_and_Model.txt".
+
+                Output:
+                You MUST do two things:
+                1. Call the ArtifactWriterTool with BOTH arguments:
+                - filename: "Software_Requirements_Specification.txt"
+                - data: (the final plain text output you generated)
+                Example call:
+                {{
+                    "filename": "Software_Requirements_Specification.txt",
+                    "data": "Final software requirements specification ..."
+                }}
+
+                2. Also return the same plain text in the "output" field, so it is visible in the console.
+                Do not skip step 1. If you do not call the ArtifactWriterTool, the process is considered INCOMPLETE.
 
                 """,
             ),
             ("placeholder", "{chat_history}"),
-            ("human", "{query}"),
+            ("ai", "{input}"),
             ("placeholder", "{agent_scratchpad}"),
         ]
     )
 
 
-    return create_tool_calling_agent(
+    agent = create_tool_calling_agent(
         tools=Tools.tools,
         llm=llm,
         prompt=prompt
     )
+
+    return AgentExecutor(agent=agent, tools=Tools.tools, verbose=True)

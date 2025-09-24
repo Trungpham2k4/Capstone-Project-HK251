@@ -1,9 +1,9 @@
 from langchain_openai import ChatOpenAI
-from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain.agents import create_tool_calling_agent, AgentExecutor, create_openai_functions_agent
 from langchain.prompts import ChatPromptTemplate
-from capstone_project_example.tools import Tools
+from tools import Tools
 
-llm = ChatOpenAI(model="gpt-5-nano", temperature=0, max_tokens=500)
+llm = ChatOpenAI(model="gpt-5-nano", temperature=0)
 
 
 def make_analysis_agent() -> AgentExecutor:
@@ -42,17 +42,36 @@ def make_analysis_agent() -> AgentExecutor:
                 3. Cross-check for completeness, conflicts, and feasibility.  
                 4. Select modeling approach and construct diagrams.  
 
+                Input:
+                You MUST use the ArtifactReaderTool to read 2 latest files: "User_Requirements_List.txt" and "Operating_Environment_List.txt".
+
+                Output:
+                You MUST do two things:
+                1. Call the ArtifactWriterTool with BOTH arguments:
+                - filename: "System_Requirements_List_and_Model.txt"
+                - data: (the final plain text output you generated)
+                Example call:
+                {{
+                    "filename": "System_Requirements_List_and_Model.txt",
+                    "data": "Final system requirements list and model ..."
+                }}
+
+                2. Also return the same plain text in the "output" field, so it is visible in the console.
+                Do not skip step 1. If you do not call the ArtifactWriterTool, the process is considered INCOMPLETE.
+
                 """,
             ),
             ("placeholder", "{chat_history}"),
-            ("human", "{query}"),
+            ("ai", "{input}"),
             ("placeholder", "{agent_scratchpad}"),
         ]
     )
 
 
-    return create_tool_calling_agent(
+    agent = create_tool_calling_agent(
         tools=Tools.tools,
         llm=llm,
         prompt=prompt
     )
+
+    return AgentExecutor(agent=agent, tools=Tools.tools, verbose=True)
