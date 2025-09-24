@@ -1,2 +1,5 @@
 .venv
 myenv
+.env
+artifact_pool
+__pycache__
