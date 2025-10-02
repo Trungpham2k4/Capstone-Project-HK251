@@ -4,10 +4,14 @@ from langchain.prompts import ChatPromptTemplate
 from tools import Tools
 
 
-llm = ChatOpenAI(model="gpt-5-nano", temperature=0)
 
+def make_archivist_agent(args) -> AgentExecutor:
 
-def make_archivist_agent() -> AgentExecutor:
+    llm = ChatOpenAI(
+        model=args.model_name,
+        base_url=args.model_base_url,
+        temperature=args.model_temperature
+    )
 
     prompt = ChatPromptTemplate.from_messages(
         [

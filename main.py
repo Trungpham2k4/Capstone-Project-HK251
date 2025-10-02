@@ -11,6 +11,7 @@ SRS draft -> Reviewer -> Final SRS
 """
 
 import os
+import argparse
 from typing import TypedDict, List, Dict, Any, Annotated
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -47,8 +48,8 @@ class ArtifactPoolState(TypedDict):
 # -------------------
 # Node functions
 # -------------------
-def interviewer_node(state: ArtifactPoolState, input_text: str) -> ArtifactPoolState:
-    agent = make_interview_agent()
+def interviewer_node(state: ArtifactPoolState, input_text: str, args) -> ArtifactPoolState:
+    agent = make_interview_agent(args)
     agent.invoke({
         "input": (
             f"Interview context: {input_text}. "
@@ -59,9 +60,9 @@ def interviewer_node(state: ArtifactPoolState, input_text: str) -> ArtifactPoolS
     })
     return state
 
-def enduser_node(state: ArtifactPoolState) -> ArtifactPoolState:
+def enduser_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
 
-    agent = make_enduser_agent()
+    agent = make_enduser_agent(args)
     agent.invoke({
         "input": (
             "Produce UserRequirementList in JSON with 3 user-level requirements. "
@@ -71,9 +72,9 @@ def enduser_node(state: ArtifactPoolState) -> ArtifactPoolState:
     })
     return state
 
-def deployer_node(state: ArtifactPoolState) -> ArtifactPoolState:
+def deployer_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
 
-    agent = make_deployer_agent()
+    agent = make_deployer_agent(args)
     agent.invoke({
         "input": (
             "Produce OperatingEnvironmentList in JSON. "
@@ -83,8 +84,8 @@ def deployer_node(state: ArtifactPoolState) -> ArtifactPoolState:
     })
     return state
 
-def analyst_node(state: ArtifactPoolState) -> ArtifactPoolState:
-    agent = make_analysis_agent()
+def analyst_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
+    agent = make_analysis_agent(args)
 
     messages = {
         "input" : (
@@ -95,7 +96,7 @@ def analyst_node(state: ArtifactPoolState) -> ArtifactPoolState:
     response = agent.invoke(messages)
     return {"messages": [{"role": "assistant", "content": response.get("output")}]}
 
-def archivist_node(state: ArtifactPoolState) -> ArtifactPoolState:
+def archivist_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
 
     messages = { 
         "input" : (
@@ -103,11 +104,11 @@ def archivist_node(state: ArtifactPoolState) -> ArtifactPoolState:
         ) 
     }
 
-    agent = make_archivist_agent()
+    agent = make_archivist_agent(args)
     response = agent.invoke(messages)
     return {"messages": [{"role": "assistant", "content": response.get("output")}]}
 
-def reviewer_node(state: ArtifactPoolState) -> ArtifactPoolState:
+def reviewer_node(state: ArtifactPoolState, arg) -> ArtifactPoolState:
 
     messages = { 
         "input" : (
@@ -115,22 +116,22 @@ def reviewer_node(state: ArtifactPoolState) -> ArtifactPoolState:
         ) 
     }
 
-    agent = make_reviewer_agent()
+    agent = make_reviewer_agent(arg)
     response = agent.invoke(messages)
     return {"messages": [{"role": "assistant", "content": response.get("output")}]}
 
 # -------------------
 # Build LangGraph workflow
 # -------------------
-def build_and_run(input_text: str):
+def build_and_run(input_text: str, args):
     graph = StateGraph(ArtifactPoolState)
 
     # graph.add_node("Interviewer", lambda st: interviewer_node(st, input_text))
     # graph.add_node("EndUser", lambda st: enduser_node(st))
     # graph.add_node("Deployer", lambda st: deployer_node(st))
-    graph.add_node("Analyst", lambda st: analyst_node(st))
-    graph.add_node("Archivist", lambda st: archivist_node(st))
-    graph.add_node("Reviewer", lambda st: reviewer_node(st))
+    graph.add_node("Analyst", lambda st: analyst_node(st, args))
+    graph.add_node("Archivist", lambda st: archivist_node(st, args))
+    graph.add_node("Reviewer", lambda st: reviewer_node(st, args))
 
     # parallel edges
     # graph.add_edge(START, "Interviewer")
@@ -158,8 +159,16 @@ def build_and_run(input_text: str):
 # Run example
 # -------------------
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--model_name', default="gpt-5-nano", type=str, help="The model name")
+    parser.add_argument('--model_base_url', default=None, type=str, help="The model base URL")
+    parser.add_argument('--model_temperature', default=0, type=float, help="The model temperature")
+
+    args = parser.parse_args()
+
     input_text = "Build an online bookstore with secure payments and good search UX."
-    final_state = build_and_run(input_text)
+    final_state = build_and_run(input_text, args)
 
 
 ### TODO: Sửa lại phần update state của ArtifactPoolState trong mỗi node function để thêm artifact mới vào list artifacts.

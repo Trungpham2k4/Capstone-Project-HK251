@@ -4,10 +4,13 @@ from langchain.prompts import ChatPromptTemplate
 from tools import Tools
 
 
-llm = ChatOpenAI(model="gpt-5-nano", temperature=0, max_tokens=500)
-
-
-def make_enduser_agent() -> AgentExecutor:
+def make_enduser_agent(args) -> AgentExecutor:
+    
+    llm = ChatOpenAI(
+        model=args.model_name,
+        base_url=args.model_base_url,
+        temperature=args.model_temperature
+    )
 
     prompt = ChatPromptTemplate.from_messages(
         [
