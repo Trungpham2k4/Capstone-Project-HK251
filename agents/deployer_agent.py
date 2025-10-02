@@ -4,11 +4,14 @@ from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
 from tools import Tools
 
-load_dotenv()
-llm = ChatOpenAI(model="gpt-5-nano", temperature=0, max_tokens=500)
 
+def make_deployer_agent(args) -> AgentExecutor:
 
-def make_deployer_agent() -> AgentExecutor:
+    llm = ChatOpenAI(
+        model=args.model_name,
+        base_url=args.model_base_url,
+        temperature=args.model_temperature
+    )
 
     prompt = ChatPromptTemplate.from_messages(
         [
