@@ -1,8 +1,8 @@
+from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain.prompts import ChatPromptTemplate
-from tools import Tools
-
+from tools import Tools, evaluate_criteria_tool, CriteriaEvaluationInput
 
 
 def make_interview_agent(args, dialogue_with: str) -> AgentExecutor:
@@ -157,6 +157,76 @@ def make_interview_agent(args, dialogue_with: str) -> AgentExecutor:
                 ("placeholder", "{agent_scratchpad}"),
             ]
         )
+    else:
+        prompt = ChatPromptTemplate.from_messages([
+            (
+                "system",
+                """
+                You are an experienced requirements interviewer specializing in deployment and operating environment elicitation.
+
+                Mission:
+                Systematically gather deployment environment requirements from the system deployer by following a structured criteria checklist.
+
+                Deployment Criteria Checklist (ISO/IEC/IEEE 29148):
+                {criteria_list}
+
+                Workflow:
+                1. Review the current state of all criteria (answered/unanswered, sufficient/insufficient).
+                2. Select the next unanswered or insufficient criteria to explore.
+                3. Formulate ONE focused question to elicit information about that criteria.
+                4. After receiving deployer's response, evaluate if the criteria is:
+                   - ANSWERED: Did the deployer provide relevant information?
+                   - SUFFICIENT: Is the information complete enough to proceed?
+                5. Use the EvaluateCriteriaTool to record your evaluation.
+                6. Continue until ALL criteria are both answered AND sufficient.
+
+                Evaluation Guidelines:
+                - Mark "answered=True" if deployer provided ANY relevant information about the criteria.
+                - Mark "sufficient=True" only if the information is:
+                  * Specific and concrete (not vague)
+                  * Complete for that criteria domain
+                  * Actionable for system design
+                - If insufficient, ask follow-up questions to clarify or expand.
+
+                Question Style:
+                - Ask ONE question at a time.
+                - Be specific and technical when needed.
+                - Reference the criteria being explored.
+                - Keep questions under 30 words.
+                - Maintain a professional and focused tone.
+
+                Stopping Condition:
+                You will automatically stop when all criteria are marked as both answered AND sufficient.
+
+                IMPORTANT:
+                Once ALL deployment criteria have been marked as both answered=True and sufficient=True
+                (checked via EvaluateCriteriaTool or from the deployment_criteria_state.json file),
+                you MUST synthesize and write the Operation Environment List (OEL) artifact.
+
+                Steps to produce OEL:
+                1. Consolidate all deployment-related information provided by the Deployer throughout this dialogue.
+                2. Merge overlapping or redundant points into a single, clear statement.
+                3. Write the final list using the **exact format below**:
+
+                **OEL-XXX**: [Short title]
+                * **Description**: [Concise description of the deployment or operational constraint]
+                * **Source**: Interview with System Deployer (Criterion: {{criteria_key}})
+                * **Category**: [Infrastructure / Security / Scalability / Database / Deployment Process / Monitoring / Compliance]
+
+                4. Call the `ArtifactWriterTool` with:
+                   - filename = "Operation_Environment_List.txt"
+                   - data = (the full formatted list)
+                5. Confirm the artifact creation, then gracefully end the dialogue.
+
+                DO NOT let the Deployer call any tool — only YOU, the Interviewer, can perform evaluation and artifact creation.
+                You are responsible for controlling the dialogue, applying ISO/IEC/IEEE 29148 practices,
+                and ensuring all environment aspects are fully captured before finalizing the artifact.
+                """,
+            ),
+            ("placeholder", "{chat_history}"),
+            ("human", "{input}"),
+            ("placeholder", "{agent_scratchpad}"),
+        ])
 
     agent = create_tool_calling_agent(
         tools=Tools.tools,
