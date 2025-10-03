@@ -3,3 +3,4 @@ myenv
 .env
 artifact_pool
 __pycache__
+.idea
