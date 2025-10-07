@@ -1,10 +1,9 @@
 import os, json
 
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
 from langchain.agents import Tool
 from langchain.tools import StructuredTool
 from pydantic import BaseModel, Field
+from rag import Rag
 
 
 ARTIFACT_DIR = "artifact_pool"
@@ -21,9 +20,8 @@ os.makedirs(ARTIFACT_DIR, exist_ok=True)
 # ], emb)
 # retriever = vs.as_retriever(search_kwargs={"k": 2})
 
-# def knowledge_retriever_tool(query: str) -> str:
-#     docs = retriever.get_relevant_documents(query)
-#     return "\n".join([d.page_content for d in docs])
+def knowledge_retriever_tool(query: str) -> str:
+    return Rag.get_rag_chain().invoke(input={"input": query})["answer"]
 
 class ArtifactWriterInput(BaseModel):
     data: str = Field(..., description="The content to write to the file.")
@@ -118,12 +116,12 @@ def evaluate_criteria_tool(
 
 class Tools: 
     tools = [
-        # Tool.from_function(name="KnowledgeRetrieverTool", func=knowledge_retriever_tool, description="Fetch domain knowledge"),
+        StructuredTool.from_function(name="KnowledgeRetrieverTool", func=knowledge_retriever_tool, description="Fetch domain knowledge"),
         StructuredTool.from_function(name="ArtifactWriterTool", func=artifact_writer_tool, description="Save artifact in plain text to a file with given filename", args_schema=ArtifactWriterInput),
         StructuredTool.from_function(name="ArtifactReaderTool", func=artifact_reader_tool, description="Read artifact from a file with given filename", args_schema=ArtifactReaderInput),
         StructuredTool.from_function(
             func=evaluate_criteria_tool,
             name="EvaluateCriteriaTool",
             description="Evaluate criteria based on the conversation"
-        )
+        ),
     ]

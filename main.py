@@ -30,6 +30,8 @@ from agents.analysis_agent import make_analysis_agent
 from agents.archivist_agent import make_archivist_agent
 from agents.reviewer_agent import make_reviewer_agent
 
+from config import Config
+
 # -------------------
 # Memory
 # -------------------
@@ -73,10 +75,10 @@ class ArtifactPoolState(TypedDict):
 # -------------------
 # Node functions
 # -------------------
-def interviewer_node(state: ArtifactPoolState, input_text: str, args) -> ArtifactPoolState:
+def interviewer_node(state: ArtifactPoolState, input_text: str) -> ArtifactPoolState:
     agent = None
     if state["artifactMetaData"]["sent_from"] == "Human" or state["artifactMetaData"]["sent_from"] == "EndUser":
-        agent = make_interview_agent(args, dialogue_with="EndUser")
+        agent = make_interview_agent(dialogue_with="EndUser")
 
     if state["enduser_phase"] < 15:
         new_phase = state["enduser_phase"] + 1
@@ -128,7 +130,7 @@ def interviewer_node(state: ArtifactPoolState, input_text: str, args) -> Artifac
 
 
 def deployer_interviewer_node(state: ArtifactPoolState, input_text: str, args) -> ArtifactPoolState:
-    agent = make_interview_agent(args, dialogue_with="Deployer")
+    agent = make_interview_agent(dialogue_with="Deployer")
 
     try:
         url_content = artifact_reader_tool("User_Requirements_List.txt")
@@ -226,7 +228,7 @@ def deployer_interviewer_node(state: ArtifactPoolState, input_text: str, args) -
 
 
 def evaluation_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
-    agent = make_interview_agent(args, dialogue_with="Deployer")
+    agent = make_interview_agent(dialogue_with="Deployer")
 
     try:
         url_content = artifact_reader_tool("User_Requirements_List.txt")
@@ -287,8 +289,8 @@ def evaluation_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
 
     return state
 
-def enduser_node(state: ArtifactPoolState, input_text: str, args) -> ArtifactPoolState:
-    agent = make_enduser_agent(args)
+def enduser_node(state: ArtifactPoolState, input_text: str) -> ArtifactPoolState:
+    agent = make_enduser_agent()
     lastest_question = state["interviewer_enduser_messages"][-1].content if state["interviewer_enduser_messages"] else ""
     response = agent.invoke({
         "input": (
@@ -310,7 +312,7 @@ def enduser_node(state: ArtifactPoolState, input_text: str, args) -> ArtifactPoo
 
 def deployer_node(state: ArtifactPoolState, input_text: str, args) -> ArtifactPoolState:
     """Deployer responding to Interviewer"""
-    agent = make_deployer_agent(args)
+    agent = make_deployer_agent()
 
     if state["interviewer_deployer_messages"]:
         latest_question = state["interviewer_deployer_messages"][-1].content
@@ -338,8 +340,8 @@ def deployer_node(state: ArtifactPoolState, input_text: str, args) -> ArtifactPo
     }
 
 
-def analyst_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
-    agent = make_analysis_agent(args)
+def analyst_node(state: ArtifactPoolState) -> ArtifactPoolState:
+    agent = make_analysis_agent()
 
     messages = {
         "input" : (
@@ -350,7 +352,7 @@ def analyst_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
     response = agent.invoke(messages)
     return {"messages": [{"role": "assistant", "content": response.get("output")}]}
 
-def archivist_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
+def archivist_node(state: ArtifactPoolState) -> ArtifactPoolState:
 
     messages = { 
         "input" : (
@@ -358,11 +360,11 @@ def archivist_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
         ) 
     }
 
-    agent = make_archivist_agent(args)
+    agent = make_archivist_agent()
     response = agent.invoke(messages)
     return {"messages": [{"role": "assistant", "content": response.get("output")}]}
 
-def reviewer_node(state: ArtifactPoolState, arg) -> ArtifactPoolState:
+def reviewer_node(state: ArtifactPoolState) -> ArtifactPoolState:
 
     messages = { 
         "input" : (
@@ -370,7 +372,7 @@ def reviewer_node(state: ArtifactPoolState, arg) -> ArtifactPoolState:
         ) 
     }
 
-    agent = make_reviewer_agent(arg)
+    agent = make_reviewer_agent()
     response = agent.invoke(messages)
     return {"messages": [{"role": "assistant", "content": response.get("output")}]}
 
@@ -391,19 +393,19 @@ def check_completion(state: ArtifactPoolState) -> Literal["InterviewerDeployer",
 # -------------------
 # Build LangGraph workflow
 # -------------------
-def build_and_run(input_text: str, args):
+def build_and_run(input_text: str):
     graph = StateGraph(ArtifactPoolState)
 
-    graph.add_node("Interviewer", lambda st: interviewer_node(st, input_text, args))
-    graph.add_node("EndUser", lambda st: enduser_node(st, input_text, args))
+    graph.add_node("Interviewer", lambda st: interviewer_node(st, input_text))
+    graph.add_node("EndUser", lambda st: enduser_node(st, input_text))
 
-    graph.add_node("DeployerInterviewer", lambda st: deployer_interviewer_node(st, input_text, args))
-    graph.add_node("Deployer", lambda st: deployer_node(st, input_text, args))
-    graph.add_node("Evaluation", lambda st: evaluation_node(st, args))
+    graph.add_node("DeployerInterviewer", lambda st: deployer_interviewer_node(st, input_text))
+    graph.add_node("Deployer", lambda st: deployer_node(st, input_text))
+    graph.add_node("Evaluation", lambda st: evaluation_node(st))
 
-    # graph.add_node("Analyst", lambda st: analyst_node(st, args))
-    # graph.add_node("Archivist", lambda st: archivist_node(st, args))
-    # graph.add_node("Reviewer", lambda st: reviewer_node(st, args))
+    # graph.add_node("Analyst", lambda st: analyst_node(st))
+    # graph.add_node("Archivist", lambda st: archivist_node(st))
+    # graph.add_node("Reviewer", lambda st: reviewer_node(st))
 
 
     # parallel edges
@@ -464,14 +466,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--model_name', default="gpt-5-nano", type=str, help="The model name")
+    parser.add_argument('--model_embed_name', default="sentence-transformers/all-MiniLM-L6-v2", type=str, help="The model embedding name")
     parser.add_argument('--model_base_url', default=None, type=str, help="The model base URL")
     parser.add_argument('--model_temperature', default=0, type=float, help="The model temperature")
 
     args = parser.parse_args()
 
+    Config.get_default(args)
+
     # input_text = "Build an online bookstore with secure payments and good search UX."
     input_text = "I need a currency converter webpage."
-    final_state = build_and_run(input_text, args)
+    final_state = build_and_run(input_text)
     print(final_state)
 
 

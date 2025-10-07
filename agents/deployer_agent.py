@@ -1,17 +1,11 @@
-from langchain_openai import ChatOpenAI
 from langchain.agents import create_tool_calling_agent, AgentExecutor, Tool
-from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
 from tools import Tools
+from config import Config
 
 
-def make_deployer_agent(args) -> AgentExecutor:
+def make_deployer_agent() -> AgentExecutor:
 
-    llm = ChatOpenAI(
-        model=args.model_name,
-        base_url=args.model_base_url,
-        temperature=args.model_temperature
-    )
 
     prompt = ChatPromptTemplate.from_messages([
         (
@@ -61,7 +55,7 @@ def make_deployer_agent(args) -> AgentExecutor:
 
     agent = create_tool_calling_agent(
         tools=Tools.tools,
-        llm=llm,
+        llm=Config.get_llm(),
         prompt=prompt
     )
 

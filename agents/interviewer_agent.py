@@ -1,11 +1,11 @@
 from langchain_core.tools import StructuredTool
-from langchain_openai import ChatOpenAI
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain.prompts import ChatPromptTemplate
 from tools import Tools, evaluate_criteria_tool, CriteriaEvaluationInput
+from config import Config
 
 
-def make_interview_agent(args, dialogue_with: str) -> AgentExecutor:
+def make_interview_agent(dialogue_with: str) -> AgentExecutor:
 
     """
     Create an AgentExecutor for interviews.
@@ -17,12 +17,6 @@ def make_interview_agent(args, dialogue_with: str) -> AgentExecutor:
     Returns:
         AgentExecutor: Configured agent instance.
     """
-
-    llm = ChatOpenAI(
-        model=args.model_name,
-        base_url=args.model_base_url,
-        temperature=args.model_temperature
-    )
     prompt = ""
 
     if dialogue_with == "EndUser":
@@ -230,7 +224,7 @@ def make_interview_agent(args, dialogue_with: str) -> AgentExecutor:
 
     agent = create_tool_calling_agent(
         tools=Tools.tools,
-        llm=llm,
+        llm=Config.get_llm(),
         prompt=prompt
     )
 
