@@ -129,7 +129,7 @@ def interviewer_node(state: ArtifactPoolState, input_text: str) -> ArtifactPoolS
     return state
 
 
-def deployer_interviewer_node(state: ArtifactPoolState, input_text: str, args) -> ArtifactPoolState:
+def deployer_interviewer_node(state: ArtifactPoolState, input_text: str) -> ArtifactPoolState:
     agent = make_interview_agent(dialogue_with="Deployer")
 
     try:
@@ -227,7 +227,7 @@ def deployer_interviewer_node(state: ArtifactPoolState, input_text: str, args) -
     }
 
 
-def evaluation_node(state: ArtifactPoolState, args) -> ArtifactPoolState:
+def evaluation_node(state: ArtifactPoolState) -> ArtifactPoolState:
     agent = make_interview_agent(dialogue_with="Deployer")
 
     try:
@@ -310,7 +310,7 @@ def enduser_node(state: ArtifactPoolState, input_text: str) -> ArtifactPoolState
     }
 
 
-def deployer_node(state: ArtifactPoolState, input_text: str, args) -> ArtifactPoolState:
+def deployer_node(state: ArtifactPoolState, input_text: str) -> ArtifactPoolState:
     """Deployer responding to Interviewer"""
     agent = make_deployer_agent()
 
