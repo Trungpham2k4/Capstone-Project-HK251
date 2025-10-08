@@ -466,7 +466,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--model_name', default="gpt-5-nano", type=str, help="The model name")
-    parser.add_argument('--model_embed_name', default="sentence-transformers/all-MiniLM-L6-v2", type=str, help="The model embedding name")
+    parser.add_argument('--model_embed_name', default="text-embedding-ada-002", type=str, help="The model embedding name")
     parser.add_argument('--model_base_url', default=None, type=str, help="The model base URL")
     parser.add_argument('--model_temperature', default=0, type=float, help="The model temperature")
 

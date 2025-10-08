@@ -6,5 +6,3 @@ pydantic
 python-dotenv
 langgraph
 faiss-cpu
-langchain-huggingface
-sentence-transformers

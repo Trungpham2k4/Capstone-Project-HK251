@@ -1,4 +1,4 @@
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 class EmbeddingConfig:
     model_name: str
@@ -10,7 +10,7 @@ class EmbeddingConfig:
 
     def get_embedding_openapi(self):
         if self.model_name:
-            return HuggingFaceEmbeddings(
-                model_name=self.model_name
+            return OpenAIEmbeddings(
+                model=self.model_name
             )
         raise ValueError("Please set your model embedding name")
