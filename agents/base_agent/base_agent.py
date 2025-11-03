@@ -10,7 +10,7 @@ Knowledge-Driven Agent base class (implements 6 modules from iReDev Sec 3.1):
 
 How to use:
  - Subclass KnowledgeDrivenAgent and override hooks (e.g., policy in thinking,
-   or valid artifact types in should_process).
+   or valid message types in should_process).
  - Provide real LLM client and publishers (KafkaProducer/MinIO client).
 """
 

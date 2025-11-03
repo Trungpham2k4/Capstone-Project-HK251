@@ -17,7 +17,7 @@ class InterviewerAction(ActionModule):
         self.max_iterations = 100
         self.current_iteration = 0
         
-    def execute(self, decision: Dict[str, Any], event: dict) -> Dict[str, Any]:
+    def execute(self, decision: Dict[str, Any], message: dict) -> Dict[str, Any]:
         """Execute the action from thinking module decision."""
         self.current_iteration += 1
         
@@ -36,14 +36,14 @@ class InterviewerAction(ActionModule):
         
         # Route to appropriate action handler
         if action_type == "ask_question":
-            return self.ask_question_action(event, decision)
+            return self.ask_question_action(message, decision)
         elif action_type == "generate_user_requirements":
             self.reset_iteration_counter()
-            return self.generate_requirements_action(event, decision)
+            return self.generate_requirements_action(message, decision)
         elif action_type == "evaluate_saturation":
-            return self.evaluate_saturation_action(event, decision)
+            return self.evaluate_saturation_action(message, decision)
         elif action_type == "retrieve_interview_record":
-            return self.retrieve_interview_record_action(event, decision)
+            return self.retrieve_interview_record_action(message, decision)
         else:
             self.reset_iteration_counter()
             print(f"[Action] Unknown action type: {action_type}")
@@ -52,13 +52,13 @@ class InterviewerAction(ActionModule):
                 "reason": f"unknown_action_{action_type}"
             }
     
-    def _append_to_interview_record(self, event: dict, content: str, role: str):
+    def _append_to_interview_record(self, message: dict, content: str, role: str):
         """
         Internal method to append conversation turn to interview record.
         Called by ask_question and respond actions.
         """
         bucket = "interview-records"
-        conv_key = event.get("conversation_id", "default_conversation")
+        conv_key = message.get("conversation_id", "default_conversation")
         record_key = f"{conv_key}_record.txt"
         
         # Read existing record
@@ -82,17 +82,17 @@ class InterviewerAction(ActionModule):
         
         return record_key
     
-    def ask_question_action(self, event: dict, decision: dict) -> Dict[str, Any]:
+    def ask_question_action(self, message: dict, decision: dict) -> Dict[str, Any]:
         """
         Interviewer asks a question to EndUser.
         Automatically appends to interview record.
         """
-        if event.get("sent_from") != "Enduser" or event.get("sent_to") != "Interviewer":
+        if message.get("sent_from") != "Enduser" or message.get("sent_to") != "Interviewer":
             # Initial question case
-            context = event.get("content", "")
+            context = message.get("content", "")
         else:
             # Follow-up question based on enduser response
-            context = f"Previous answer from enduser: {event.get('content', '')}"
+            context = f"Previous answer from enduser: {message.get('content', '')}"
         
         # Build prompt for question generation
         prompt = f"""You are an experienced requirements interviewer.
@@ -119,38 +119,38 @@ Return ONLY the question text, nothing else."""
             question = "Could you tell me more about your requirements?"
         
         # Append to interview record
-        self._append_to_interview_record(event, question, "Interviewer")
+        self._append_to_interview_record(message, question, "Interviewer")
         
-        # Create artifact for the question
-        artifact = self._make_artifact(
+        # Create message for the question
+        message = self._make_message(
             role="Interviewer",
-            artifact_type="Question",
+            message_type="Question",
             content=question,
             sent_from="Interviewer",
             sent_to="Enduser",
-            conversation_id=event.get("conversation_id", "default_conversation")
+            conversation_id=message.get("conversation_id", "default_conversation")
         )
         
         print(f"[Action] Asked question: {question}")
         # Publish to Kafka
-        self.publisher.publish("interviewer_enduser", artifact)
+        self.publisher.publish("interviewer_enduser", message)
         
         
         
         return {
             "status": "complete",
             "action": "ask_question",
-            "artifact_id": artifact["artifact_id"],
+            "message_id": message["message_id"],
             "message": "Question sent, waiting for response"
         }
     
-    def retrieve_interview_record_action(self, event: dict, decision: dict) -> Dict[str, Any]:
+    def retrieve_interview_record_action(self, message: dict, decision: dict) -> Dict[str, Any]:
         """
         Retrieve full conversation record from MinIO.
         Returns data structure compatible with ThinkingModule expectations.
         """
         bucket = "interview-records"
-        conv_key = event.get("conversation_id", "default_conversation")
+        conv_key = message.get("conversation_id", "default_conversation")
         record_key = f"{conv_key}_record.txt"
         
         try:
@@ -187,13 +187,13 @@ Return ONLY the question text, nothing else."""
                 }
             }
     
-    def generate_requirements_action(self, event: dict, decision: dict) -> Dict[str, Any]:
+    def generate_requirements_action(self, message: dict, decision: dict) -> Dict[str, Any]:
         """
         Generate User Requirements List from conversation.
         Output in plain text format.
         """
         # First retrieve the conversation
-        record_result = self.retrieve_interview_record_action(event, decision)
+        record_result = self.retrieve_interview_record_action(message, decision)
         record_text = record_result.get("data", {}).get("record_text", "")
         
         if not record_text:
@@ -211,7 +211,7 @@ Generate a User Requirements List in plain text format following this structure:
 
 USER REQUIREMENTS LIST
 Generated: {now_iso()}
-Conversation ID: {event.get("conversation_id", "unknown")}
+Conversation ID: {message.get("conversation_id", "unknown")}
 
 REQUIREMENTS:
 
@@ -267,13 +267,13 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
             "bucket": bucket
         }
     
-    def evaluate_saturation_action(self, event: dict, decision: dict) -> Dict[str, Any]:
+    def evaluate_saturation_action(self, message: dict, decision: dict) -> Dict[str, Any]:
         """
         Evaluate conversation saturation to decide if more questions needed.
         Returns data structure compatible with ThinkingModule expectations.
         """
         # Retrieve conversation
-        record_result = self.retrieve_interview_record_action(event, decision)
+        record_result = self.retrieve_interview_record_action(message, decision)
         record_text = record_result.get("data", {}).get("record_text", "")
         total_turns = record_result.get("data", {}).get("total_turns", 0)
         

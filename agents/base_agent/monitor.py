@@ -11,7 +11,6 @@ class MonitorModule:
         self.thinking_module = thinking_module
         self.kafka = kafka_service
         self.topics = subscribe_topics
-        self.on_artifact_callback = None
         self.messages: dict[str, str] = {}
 
     def start(self):

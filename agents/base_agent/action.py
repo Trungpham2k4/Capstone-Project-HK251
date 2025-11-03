@@ -12,12 +12,12 @@ class ActionModule:
         """Execute the action from thinking module decision."""
         pass
 
-    def _make_artifact(self, role: str, artifact_type: str, content: str, 
+    def _make_message(self, role: str, message_type: str, content: str, 
                       sent_from: str, sent_to: str, conversation_id: str = "default") -> dict:
-        """Create a standardized artifact dictionary."""
+        """Create a standardized message dictionary."""
         return {
-            "artifact_id": make_id(),
-            "type": artifact_type,
+            "message_id": make_id(),
+            "type": message_type,
             "role": role,
             "content": content,
             "state": "created",

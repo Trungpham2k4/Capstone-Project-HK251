@@ -37,35 +37,32 @@ class EndUserThinking(ThinkingModule):
         self.conversation_turns = 1
         self.user_input = "" # Cái này chưa có tí phải thêm bằng cách nào đó
 
-    def decide(self, artifact: Dict[str, Any]):
+    def decide(self, message: Dict[str, Any]):
         """
         Main decision loop: Think → Act → Check status → Repeat if needed.
         Tracks conversation turns: increments only when ask_question is executed.
         """
-        print(f"\n[Thinking] Starting decision process for artifact from {artifact.get('sent_from')}")
+        print(f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}")
         print(f"[Thinking] Current conversation turns: {self.conversation_turns}")
-        
-        # Initial decision
-        current_artifact = artifact.copy()
         
         # Decision-Action loop
         while True:
 
             if self.conversation_turns > 10:
-                print("[Thinking] Maximum conversation turns reached, generate artifacts.")
-                self.action.execute({"action" : "generate_user_requirements", "rationale": "Max conversation turns exceeded"}, current_artifact)
+                print("[Thinking] Maximum conversation turns reached, generate messages.")
+                self.action.execute({"action" : "generate_user_requirements", "rationale": "Max conversation turns exceeded"}, message=message)
                 self.conversation_turns = 1
                 break
 
             # 1. Make decision
-            decision = self._make_decision(current_artifact)
+            decision = self._make_decision(message)
             
             if not decision:
                 print("[Thinking] Failed to make valid decision, stopping.")
                 break
             
             # 2. Execute action
-            execution_result = self.action.execute(decision, current_artifact)
+            execution_result = self.action.execute(decision, message=message)
             
             # 3. Update conversation turns if ask_question was executed
             if decision.get("action") == "ask_question" and execution_result.get("status") in ["waiting", "complete"]:
@@ -91,36 +88,15 @@ class EndUserThinking(ThinkingModule):
             elif status == "error":
                 print(f"[Thinking] Error occurred: {execution_result.get('reason')}")
                 break
-            elif status == "waiting":
-                # Action requires external input (e.g., waiting for user response)
-                # print("[Thinking] Waiting for external input, pausing decision loop")
-                break
-            elif status == "continue":
-                # Action completed, but process should continue with next decision
-                print("[Thinking] Continuing to next decision...")
-                
-                # Update artifact with execution result if needed
-                if "data" in execution_result:
-                    current_artifact["context_data"] = execution_result["data"]
-                    if execution_result["action"] == "retrieve_interview_record":
-                        self.retrieve_record_done = True
-                        self.record_text = execution_result["data"].get("record_text", "")
-                    if execution_result["action"] == "evaluate_saturation":
-                        self.saturation_evaluated = True
-                        self.saturation_score = execution_result["data"].get("saturation_score", None)
-                        self.saturation_reasoning = execution_result["data"].get("reasoning", "")
-            else:
-                print(f"[Thinking] Unknown status: {status}, stopping")
-                break
         
         # print(f"[Thinking] Decision process finished.")
         # print(f"[Thinking] Total conversation turns: {self.conversation_turns}\n")
 
-    def _make_decision(self, artifact: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _make_decision(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Make a single decision based on current artifact state.
+        Make a single decision based on current message state.
         """
-        prompt = self._build_enduser_prompt(artifact)
+        prompt = self._build_enduser_prompt(message)
         allowed_actions = ALLOWED_ACTIONS_ENDUSER
 
         # Get decision from LLM
@@ -170,11 +146,11 @@ class EndUserThinking(ThinkingModule):
         
         return decision
 
-    def _build_enduser_prompt(self, artifact: Dict[str, Any]) -> str:
+    def _build_enduser_prompt(self, message: Dict[str, Any]) -> str:
         """Build prompt for EndUser agent decision-making."""
         print("[Thinking] Building enduser prompt...")
         
-        question = artifact.get("content", "")
+        question = message.get("content", "")
         
         # Knowledge and memory (simplified)
         kb_text = "No relevant knowledge found."
@@ -201,19 +177,13 @@ class EndUserThinking(ThinkingModule):
         QUESTION FROM INTERVIEWER:
         "{question}"
 
-        GOAL:
-        - Answer the interviewer's question clearly and provide relevant details about your needs.
-
         CONTEXT:
-        - Artifact type: {artifact.get('type')}
-        - From: {artifact.get('sent_from')}
         - Knowledge context: {kb_text}
         - Memory context: {mem_text}
         - Main context: "{self.user_input}"
 
         ALLOWED ACTIONS (choose EXACTLY ONE):
         - respond: provide the answer text and recipients.
-        required fields: type, content, recipients, artifact_type
         - clarify: ask interviewer for clarification (if question ambiguous).
 
         DECISION RULES:
@@ -221,7 +191,6 @@ class EndUserThinking(ThinkingModule):
         - If question is ambiguous: ask for clarify
         - If question is outside your knowledge: respond with what you know
         - Always try to provide examples and specific details
-
 
         OUTPUT FORMAT (strict JSON only):
         {{

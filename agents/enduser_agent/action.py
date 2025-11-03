@@ -14,7 +14,7 @@ class EndUserAction(ActionModule):
         self.storage = storage_client
         self.llm = llm
         
-    def execute(self, decision: Dict[str, Any], event: dict) -> Dict[str, Any]:
+    def execute(self, decision: Dict[str, Any], message: dict) -> Dict[str, Any]:
         """Execute the action from thinking module decision."""
         
         action_type = decision.get("action")
@@ -24,7 +24,7 @@ class EndUserAction(ActionModule):
         
         # Route to appropriate action handler
         if action_type == "respond" or action_type == "clarify":
-            return self.respond_action(event, decision)
+            return self.respond_action(message, decision)
         else:
             self.reset_iteration_counter()
             print(f"[Action] Unknown action type: {action_type}")
@@ -33,13 +33,13 @@ class EndUserAction(ActionModule):
                 "reason": f"unknown_action_{action_type}"
             }
     
-    def _append_to_interview_record(self, event: dict, content: str, role: str):
+    def _append_to_interview_record(self, message: dict, content: str, role: str):
         """
         Internal method to append conversation turn to interview record.
         Called by ask_question and respond actions.
         """
         bucket = "interview-records"
-        conv_key = event.get("conversation_id", "default_conversation")
+        conv_key = message.get("conversation_id", "default_conversation")
         record_key = f"{conv_key}_record.txt"
         
         # Read existing record
@@ -63,12 +63,12 @@ class EndUserAction(ActionModule):
         
         return record_key
     
-    def respond_action(self, event: dict, decision: dict) -> Dict[str, Any]:
+    def respond_action(self, message: dict, decision: dict) -> Dict[str, Any]:
         """
         EndUser responds to interviewer's question.
         Automatically appends to interview record.
         """
-        question = event.get("content", "")
+        question = message.get("content", "")
         
         prompt = f"""You are an end user being interviewed about software requirements.
 
@@ -96,25 +96,25 @@ Return ONLY the response text."""
             answer = "I need a system that is user-friendly and efficient."
         
         # Append to interview record
-        self._append_to_interview_record(event, answer, "Enduser")
+        self._append_to_interview_record(message, answer, "Enduser")
         
-        # Create artifact
-        artifact = self._make_artifact(
+        # Create message
+        message = self._make_message(
             role="Enduser",
-            artifact_type="Response",
+            message_type="Response",
             content=answer,
             sent_from="Enduser",
             sent_to="Interviewer",
-            conversation_id=event.get("conversation_id", "default_conversation")
+            conversation_id=message.get("conversation_id", "default_conversation")
         )
         
         print(f"[Action] Responded: {answer}")
         # Publish to Kafka
-        self.publisher.publish("enduser_interviewer", artifact)
+        self.publisher.publish("enduser_interviewer", message)
         
         return {
             "status": "complete",
             "action": "respond",
-            "artifact_id": artifact["artifact_id"],
+            "message_id": message["message_id"],
             "message": "Response sent, waiting for next question"
         }

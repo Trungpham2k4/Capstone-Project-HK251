@@ -34,16 +34,16 @@ class ThinkingModule:
         self.action = action
         self.llm = llm_client
 
-    def decide(self, artifact: Dict[str, Any]):
+    def decide(self, message: Dict[str, Any]):
         """
         Main decision loop: Think → Act → Check status → Repeat if needed.
         Tracks conversation turns: increments only when ask_question is executed.
         """
         pass
 
-    def _make_decision(self, artifact: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _make_decision(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Make a single decision based on current artifact state.
+        Make a single decision based on current message state.
         """
         pass
 

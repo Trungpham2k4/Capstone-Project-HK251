@@ -43,35 +43,32 @@ class InterviewerThinking(ThinkingModule):
         self.saturation_score = None
         self.saturation_reasoning = ""
 
-    def decide(self, artifact: Dict[str, Any]):
+    def decide(self, message: Dict[str, Any]):
         """
         Main decision loop: Think → Act → Check status → Repeat if needed.
         Tracks conversation turns: increments only when ask_question is executed.
         """
-        print(f"\n[Thinking] Starting decision process for artifact from {artifact.get('sent_from')}")
+        print(f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}")
         print(f"[Thinking] Current conversation turns: {self.conversation_turns}")
-        
-        # Initial decision
-        current_artifact = artifact.copy()
         
         # Decision-Action loop
         while True:
 
             if self.conversation_turns > 10:
-                print("[Thinking] Maximum conversation turns reached, generate artifacts.")
-                self.action.execute({"action" : "generate_user_requirements", "rationale": "Max conversation turns exceeded"}, current_artifact)
+                print("[Thinking] Maximum conversation turns reached, generate messages.")
+                self.action.execute({"action" : "generate_user_requirements", "rationale": "Max conversation turns exceeded"}, message)
                 self.conversation_turns = 1
                 break
 
             # 1. Make decision
-            decision = self._make_decision(current_artifact)
+            decision = self._make_decision(message=message)
             
             if not decision:
                 print("[Thinking] Failed to make valid decision, stopping.")
                 break
             
             # 2. Execute action
-            execution_result = self.action.execute(decision, current_artifact)
+            execution_result = self.action.execute(decision, message)
             
             # 3. Update conversation turns if ask_question was executed
             if decision.get("action") == "ask_question" and execution_result.get("status") in ["waiting", "complete"]:
@@ -105,9 +102,8 @@ class InterviewerThinking(ThinkingModule):
                 # Action completed, but process should continue with next decision
                 print("[Thinking] Continuing to next decision...")
                 
-                # Update artifact with execution result if needed
+                # Update message with execution result if needed
                 if "data" in execution_result:
-                    current_artifact["context_data"] = execution_result["data"]
                     if execution_result["action"] == "retrieve_interview_record":
                         self.retrieve_record_done = True
                         self.record_text = execution_result["data"].get("record_text", "")
@@ -122,19 +118,19 @@ class InterviewerThinking(ThinkingModule):
         # print(f"[Thinking] Decision process finished.")
         # print(f"[Thinking] Total conversation turns: {self.conversation_turns}\n")
 
-    def _make_decision(self, artifact: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _make_decision(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Make a single decision based on current artifact state.
+        Make a single decision based on current message state.
         """
         # Determine which prompt to use based on roles
-        sent_from = artifact.get("sent_from")
-        sent_to = artifact.get("sent_to")
+        sent_from = message.get("sent_from")
+        sent_to = message.get("sent_to")
         
         if sent_from == "User":
-            self.user_input = artifact.get("content", "")
+            self.user_input = message.get("content", "")
 
         if (sent_from == "Enduser" and sent_to == "Interviewer") or (sent_from == "User" and sent_to == "Interviewer"):
-            prompt = self._build_interviewer_prompt(artifact)
+            prompt = self._build_interviewer_prompt(message)
             allowed_actions = ALLOWED_ACTIONS_INTERVIEWER
         else:
             print(f"[Thinking] Unknown role direction: {sent_from} → {sent_to}")
@@ -189,17 +185,17 @@ class InterviewerThinking(ThinkingModule):
         
         return decision
     
-    def _build_interviewer_prompt(self, artifact: Dict[str, Any]) -> str:
+    def _build_interviewer_prompt(self, message: Dict[str, Any]) -> str:
         """Build prompt for Interviewer agent decision-making."""
 
         print("[Thinking] Building interviewer prompt...")
         
         # Get context data if available (from previous actions like retrieve_interview_record)
-        # context_data = artifact.get("context_data", {})
+        # context_data = message.get("context_data", {})
         conversation_turns = self.conversation_turns
         
         # Retrieve relevant knowledge and memory (simplified for now)
-        content = artifact.get("content", "")
+        content = message.get("content", "")
 
 
         # Interview record data (if retrieved)
@@ -227,13 +223,11 @@ class InterviewerThinking(ThinkingModule):
                 - Reasoning: {self.saturation_reasoning}
                 """
 
-        # Check what has been done
-        # record_retrieved = bool(context_data.get("record_text"))
-        # saturation_evaluated = context_data.get("saturation_score") is not None
-
         # Build status indicators
         record_status = "✓ RETRIEVED" if self.retrieve_record_done else "✗ NOT RETRIEVED"
         saturation_status = f"✓ EVALUATED (score: {self.saturation_score:.2f})" if self.saturation_evaluated else "✗ NOT EVALUATED"
+
+        print(f"[Thinking] Record status: {record_status}, Saturation status: {saturation_status}")
 
         # Knowledge retrieval (placeholder - replace with actual implementation)
         kb_text = "No relevant prior knowledge found."
@@ -311,7 +305,6 @@ class InterviewerThinking(ThinkingModule):
                 "rationale": "Based on turn {conversation_turns} and current state, I must...",
                 "action": "exactly_one_action_from_above"
             }}"""
-        print("[Thinking] Interviewer prompt built: ", prompt)
         return prompt
 
 
