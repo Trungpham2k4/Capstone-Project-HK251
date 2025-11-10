@@ -4,36 +4,39 @@ from utils.common import now_iso, make_id
 from openai import OpenAI
 from typing import Dict, Any, Optional
 import json
-import uuid
+import uuidfrom config import Config
+
 from agents.base_agent.action import ActionModule
+
 
 class InterviewerAction(ActionModule):
 
-    def __init__(self, publisher: KafkaService, 
-                 storage_client: MinioService, llm: OpenAI):
+    def __init__(
+        self, publisher: KafkaService, storage_client: MinioService, llm: OpenAI
+    ):
         self.publisher = publisher
         self.storage = storage_client
         self.llm = llm
         self.max_iterations = 100
         self.current_iteration = 0
-        
+
     def execute(self, decision: Dict[str, Any], message: dict) -> Dict[str, Any]:
         """Execute the action from thinking module decision."""
         self.current_iteration += 1
-        
+
         # Check max iterations
         if self.current_iteration >= self.max_iterations:
             return {
                 "status": "complete",
                 "reason": "max_iterations_reached",
-                "message": "Process terminated: maximum iterations reached"
+                "message": "Process terminated: maximum iterations reached",
             }
-        
+
         action_type = decision.get("action")
         rationale = decision.get("rationale", "")
-        
+
         print(f"[Action] Executing '{action_type}' - Rationale: {rationale}")
-        
+
         # Route to appropriate action handler
         if action_type == "ask_question":
             return self.ask_question_action(message, decision)
@@ -47,11 +50,8 @@ class InterviewerAction(ActionModule):
         else:
             self.reset_iteration_counter()
             print(f"[Action] Unknown action type: {action_type}")
-            return {
-                "status": "error",
-                "reason": f"unknown_action_{action_type}"
-            }
-    
+            return {"status": "error", "reason": f"unknown_action_{action_type}"}
+
     def _append_to_interview_record(self, message: dict, content: str, role: str):
         """
         Internal method to append conversation turn to interview record.
@@ -64,36 +64,39 @@ class InterviewerAction(ActionModule):
         # Read existing record
         try:
             existing_data = self.storage.get_object(bucket, record_key)
-            existing_text = existing_data.decode('utf-8')
+            existing_text = existing_data.decode("utf-8")
         except Exception:
             existing_text = ""
-        
+
         # Format new turn in plain text
         timestamp = now_iso()
         new_turn = f"[{timestamp}] {role}: {content}\n"
-        
+
         # Append to existing record
         updated_text = existing_text + new_turn
-        
+
         # Write back to MinIO
-        self.storage.put_object(bucket, record_key, updated_text.encode('utf-8'))
-        
+        self.storage.put_object(bucket, record_key, updated_text.encode("utf-8"))
+
         print(f"[Action] Appended to record: {record_key}")
-        
+
         return record_key
-    
+
     def ask_question_action(self, message: dict, decision: dict) -> Dict[str, Any]:
         """
         Interviewer asks a question to EndUser.
         Automatically appends to interview record.
         """
-        if message.get("sent_from") != "Enduser" or message.get("sent_to") != "Interviewer":
+        if (
+            message.get("sent_from") != "Enduser"
+            or message.get("sent_to") != "Interviewer"
+        ):
             # Initial question case
             context = message.get("content", "")
         else:
             # Follow-up question based on enduser response
             context = f"Previous answer from enduser: {message.get('content', '')}"
-        
+
         # Build prompt for question generation
         prompt = f"""You are an experienced requirements interviewer.
 
@@ -110,17 +113,17 @@ Return ONLY the question text, nothing else."""
 
         try:
             response = self.llm.chat.completions.create(
-                model="gpt-5-nano",
-                messages=[{"role": "user", "content": prompt}]
+                model=Config().get_llm_model_name(),
+                messages=[{"role": "user", "content": prompt}],
             )
             question = response.choices[0].message.content.strip()
         except Exception as e:
             print(f"[Action] Error generating question: {e}")
             question = "Could you tell me more about your requirements?"
-        
+
         # Append to interview record
         self._append_to_interview_record(message, question, "Interviewer")
-        
+
         # Create message for the question
         message = self._make_message(
             role="Interviewer",
@@ -128,21 +131,21 @@ Return ONLY the question text, nothing else."""
             content=question,
             sent_from="Interviewer",
             sent_to="Enduser",
-            conversation_id=message.get("conversation_id", "default_conversation")
+            conversation_id=message.get("conversation_id", "default_conversation"),
         )
-        
+
         print(f"[Action] Asked question: {question}")
         # Publish to Kafka
         self.publisher.publish("interviewer_enduser", message)
-        
-        
-        
+
         return {
             "status": "complete",
             "action": "ask_question"
         }
-    
-    def retrieve_interview_record_action(self, message: dict, decision: dict) -> Dict[str, Any]:
+
+    def retrieve_interview_record_action(
+        self, message: dict, decision: dict
+    ) -> Dict[str, Any]:
         """
         Retrieve full conversation record from MinIO.
         Returns data structure compatible with ThinkingModule expectations.
@@ -153,25 +156,25 @@ Return ONLY the question text, nothing else."""
         
         try:
             data = self.storage.get_object(bucket, record_key)
-            record_text = data.decode('utf-8')
+            record_text = data.decode("utf-8")
 
             print("[Action] Data retrieved from MinIO: ", record_text)
-            
+
             # Count turns (each turn has Interviewer and Enduser lines)
             interviewer_count = record_text.count("Interviewer:")
             enduser_count = record_text.count("Enduser:")
             turns = min(interviewer_count, enduser_count)
-            
+
             print(f"[Action] Retrieved record: {turns} turns")
-            
+
             return {
                 "status": "continue",
                 "action": "retrieve_interview_record",
                 "data": {
                     "record_text": record_text,
                     "total_turns": turns,
-                    "conversation_id": conv_key
-                }
+                    "conversation_id": conv_key,
+                },
             }
         except Exception as e:
             print(f"[Action] Error retrieving record: {e}")
@@ -181,8 +184,8 @@ Return ONLY the question text, nothing else."""
                 "data": {
                     "record_text": "",
                     "total_turns": 0,
-                    "conversation_id": conv_key
-                }
+                    "conversation_id": conv_key,
+                },
             }
     
     def generate_user_requirements_list_action(self, message: dict, decision: dict) -> Dict[str, Any]:
@@ -193,13 +196,10 @@ Return ONLY the question text, nothing else."""
         # First retrieve the conversation
         record_result = self.retrieve_interview_record_action(message, decision)
         record_text = record_result.get("data", {}).get("record_text", "")
-        
+
         if not record_text:
-            return {
-                "status": "error",
-                "reason": "no_conversation_found"
-            }
-        
+            return {"status": "error", "reason": "no_conversation_found"}
+
         prompt = f"""You are a requirements analyst. Analyze this interview conversation and extract user requirements.
 
 Interview Record:
@@ -237,15 +237,15 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
 
         try:
             response = self.llm.chat.completions.create(
-                model="gpt-5-nano",
-                messages=[{"role": "user", "content": prompt}]
+                model=Config().get_llm_model_name(),
+                messages=[{"role": "user", "content": prompt}],
             )
             requirements_text = response.choices[0].message.content.strip()
-            
+
         except Exception as e:
             print(f"[Action] Error generating requirements: {e}")
             requirements_text = f"ERROR: Failed to generate requirements\n{str(e)}"
-        
+
         # Store in MinIO as plain text
         bucket = "iredev-application"
         key = f"artifacts/user-requirements-list/user_requirements_{make_id()}.txt"
@@ -253,7 +253,7 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
         
         # Count requirements (simple heuristic)
         req_count = requirements_text.count("REQ-")
-        
+
         print(f"[Action] Generated requirements: {req_count} items")
         print(f"[Action] Stored at: {bucket}/{key}")
 
@@ -267,8 +267,10 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
             "status": "complete",
             "action": "generate_user_requirements"
         }
-    
-    def evaluate_saturation_action(self, message: dict, decision: dict) -> Dict[str, Any]:
+
+    def evaluate_saturation_action(
+        self, message: dict, decision: dict
+    ) -> Dict[str, Any]:
         """
         Evaluate conversation saturation to decide if more questions needed.
         Returns data structure compatible with ThinkingModule expectations.
@@ -277,7 +279,7 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
         record_result = self.retrieve_interview_record_action(message, decision)
         record_text = record_result.get("data", {}).get("record_text", "")
         total_turns = record_result.get("data", {}).get("total_turns", 0)
-        
+
         if total_turns < 3:
             return {
                 "status": "continue",
@@ -285,15 +287,15 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
                 "data": {
                     "saturation_score": 0.2,
                     "recommendation": "continue_interview",
-                    "reasoning": "Too few turns for saturation assessment"
-                }
+                    "reasoning": "Too few turns for saturation assessment",
+                },
             }
-        
+
         # Get last exchanges for analysis
-        lines = record_text.strip().split('\n')
+        lines = record_text.strip().split("\n")
         recent_lines = lines[-20:] if len(lines) > 20 else lines
-        recent_conversation = '\n'.join(recent_lines)
-        
+        recent_conversation = "\n".join(recent_lines)
+
         prompt = f"""Analyze this interview conversation for saturation (repetitive information).
 
 Recent conversation:
@@ -314,34 +316,31 @@ Return ONLY a JSON object:
 
         try:
             response = self.llm.chat.completions.create(
-                model="gpt-5-nano",
-                messages=[{"role": "user", "content": prompt}]
+                model=Config().get_llm_model_name(),
+                messages=[{"role": "user", "content": prompt}],
             )
             result_text = response.choices[0].message.content.strip()
-            
+
             # Clean and parse JSON
             if "```json" in result_text:
                 result_text = result_text.split("```json")[1].split("```")[0].strip()
             elif "```" in result_text:
                 result_text = result_text.split("```")[1].split("```")[0].strip()
-            
+
             result = json.loads(result_text)
             saturation_score = result.get("saturation_score", 0.5)
             reasoning = result.get("reasoning", "No reasoning provided")
-            
+
         except Exception as e:
             print(f"[Action] Error evaluating saturation: {e}")
             saturation_score = 0.5
             reasoning = "Error in evaluation, defaulting to continue"
-        
+
         print(f"[Action] Saturation score: {saturation_score}")
-        
+
         # Return data structure that ThinkingModule expects
         return {
             "status": "continue",
             "action": "evaluate_saturation",
-            "data": {
-                "saturation_score": saturation_score,
-                "reasoning": reasoning
-            }
+            "data": {"saturation_score": saturation_score, "reasoning": reasoning},
         }
