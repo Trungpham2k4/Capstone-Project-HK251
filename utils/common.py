@@ -9,8 +9,10 @@ import yaml
 def now_iso():
     return datetime.now().isoformat()
 
+
 def make_id(prefix="A"):
     return f"{prefix}-{uuid.uuid4().hex[:8]}"
+
 
 def load_params(param_path: str) -> dict:
     try:
@@ -18,5 +20,4 @@ def load_params(param_path: str) -> dict:
             params = yaml.safe_load(file)
         return params
     except Exception as e:
-        print(e)
-        raise
+        return {}

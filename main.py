@@ -100,4 +100,5 @@ def build_flow():
 
 
 if __name__ == "__main__":
+    Config().load_config()
     build_flow()
