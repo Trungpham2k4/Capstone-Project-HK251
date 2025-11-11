@@ -8,12 +8,15 @@ import time
 from services.kafka_service import KafkaService
 from services.minio_service import MinioService
 from openai import OpenAI
+from dotenv import load_dotenv
 from utils.common import now_iso
 from config import Config
 
 
 def build_flow():
     """Simple test flow with real user input via Kafka."""
+
+    load_dotenv()
 
     kafka_service = KafkaService(brokers=Config().get_kafka_brokers())
     minio_service = MinioService(endpoint=Config().get_minio_endpoint())
