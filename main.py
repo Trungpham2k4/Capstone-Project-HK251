@@ -1,6 +1,7 @@
 import os
 from agents.interviewer_agent.interviewer_agent import InterviewerAgent
 from agents.enduser_agent.enduser_agent import EndUserAgent
+from agents.analyst_agent.analyst_agent import AnalystAgent
 import time
 
 from services.kafka_service import KafkaService
@@ -78,6 +79,25 @@ def build_flow():
     print("  INTERVIEW IN PROGRESS")
     print("="*70)
     print("\nMonitoring conversation... (Press Ctrl+C to stop)\n")
+
+
+    ### Analyst Agent Section (Uncomment to enable) ###
+    # analyst = AnalystAgent(
+    #     kafka_service=kafka_service,
+    #     minio_service=minio_service,
+    #     llm=llm_client
+    # )
+    # analyst.start()
+    # print("[Flow] Starting Analyst Agent...")
+    # time.sleep(5)
+
+    #### Simulate a message to Analyst to generate system requirements ####
+    # kafka_service.publish("interviewer_analyst", {
+    #     "sent_from": "Interviewer",
+    #     "sent_to": "Analyst",
+    #     "user_requirements_list_file_name": "user_requirements_A-bf801f74.txt",
+    #     "operating_environment_list_file_name": "Operating Env List.txt",
+    # })
     
     try:
         # Keep running to observe the conversation
