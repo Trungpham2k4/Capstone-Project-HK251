@@ -111,18 +111,13 @@ class AnalystAction(ActionModule):
             }
 
         # Publish event to Kafka
-        message = self._make_message(
-            role="Analyst",
-            message_type="System Requirements Generated",
-            content=f"System requirements generated and stored with artifact ID: {artifact_id}",
-            sent_from="Analyst",
-            sent_to="Analyst"
-        )
-
-        self.publisher.publish(topic="system_requirements_generated", message=message)
+        self.publisher.publish(topic="artifact_events", message={
+            "artifact_type": "system_requirements_list",
+            "artifact_key": artifact_id
+        })
 
         return {
-            "status": "complete"
+            "status": "continue"
         }
 
     def retrieve_url_and_oel(self, message: dict) -> Dict[str, Any]:
@@ -144,8 +139,6 @@ class AnalystAction(ActionModule):
             print(f"[Action] Data retrieved from MinIO: \nUser Requirements: {user_requirements[:100]} \nOperating Environment: {operating_environment[:100]}")
             
             return {
-                "status": "continue",
-                "action": "retrieve_url_and_oel",
                 "data": {
                     "user_requirements": user_requirements,
                     "operating_environment": operating_environment
@@ -155,8 +148,6 @@ class AnalystAction(ActionModule):
         except Exception as e:
             print(f"[Action] Error retrieving data: {e}")
             return {
-                "status": "continue",
-                "action": "retrieve_url_and_oel",
                 "data": {
                     "user_requirements": "",
                     "operating_environment": ""
@@ -276,15 +267,11 @@ class AnalystAction(ActionModule):
                 "reason": "storage_failure"
             }
         
-        # message = self._make_message(
-        #     role="Analyst",
-        #     message_type="Requirement Model Generated",
-        #     content=f"Requirement model generated and stored with artifact ID: {artifact_id}",
-        #     sent_from="Analyst",
-        #     sent_to="Archivist"
-        # )
-
-        # self.publisher.publish(topic="requirement_model_generated", message=message)
+        # Publish event to Kafka
+        self.publisher.publish("artifact_events", message={
+            "artifact_type": "requirements_model",
+            "artifact_key": artifact_id
+        })
         
         return {
             "status": "complete"

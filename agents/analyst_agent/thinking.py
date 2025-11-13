@@ -156,5 +156,3 @@ class AnalystThinking(ThinkingModule):
         }}
         """
         return prompt
-
-### Task mai: Làm phần action module và demo

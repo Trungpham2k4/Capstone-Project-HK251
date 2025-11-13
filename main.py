@@ -36,11 +36,17 @@ def build_flow():
         minio_service=minio_service, 
         llm=llm_client
     )
+    analyst = AnalystAgent(
+        kafka_service=kafka_service,
+        minio_service=minio_service,
+        llm=llm_client
+    )
 
     # Start agents
     print("[Flow] Starting agents...")
     interviewer.start()
     enduser.start()
+    analyst.start()
 
     # Wait for agents to connect to Kafka
     print("[Flow] Waiting for Kafka connections...")
@@ -51,7 +57,7 @@ def build_flow():
     print("-"*70 + "\n")
 
     # Simulate real user input - simple project requirement
-    user_input = "I want to create a simple task management system"
+    user_input = "I need a currency converter webpage"
     conversation_id = "interview_session_004"
     
     print(f"[User Input] {user_input}")
