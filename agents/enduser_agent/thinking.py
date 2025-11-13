@@ -34,7 +34,6 @@ class EndUserThinking(ThinkingModule):
         self.memory = memory
         self.action = action
         self.llm = llm_client
-        self.conversation_turns = 1
         self.user_input = "" # Cái này chưa có tí phải thêm bằng cách nào đó
 
     def decide(self, message: Dict[str, Any]):
@@ -43,16 +42,9 @@ class EndUserThinking(ThinkingModule):
         Tracks conversation turns: increments only when ask_question is executed.
         """
         print(f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}")
-        print(f"[Thinking] Current conversation turns: {self.conversation_turns}")
         
         # Decision-Action loop
         while True:
-
-            if self.conversation_turns > 10:
-                print("[Thinking] Maximum conversation turns reached, generate messages.")
-                self.action.execute({"action" : "generate_user_requirements", "rationale": "Max conversation turns exceeded"}, message=message)
-                self.conversation_turns = 1
-                break
 
             # 1. Make decision
             decision = self._make_decision(message)
@@ -64,23 +56,8 @@ class EndUserThinking(ThinkingModule):
             # 2. Execute action
             execution_result = self.action.execute(decision, message=message)
             
-            # 3. Update conversation turns if ask_question was executed
-            if decision.get("action") == "ask_question" and execution_result.get("status") in ["waiting", "complete"]:
-                self.conversation_turns += 1
-                self.retrieve_record_done = False  # Reset for next turn
-                self.saturation_evaluated = False  # Reset for next turn
-                self.saturation_score = None
-                self.saturation_reasoning = ""
-                self.record_text = ""
-                # print(f"[Thinking] Conversation turn incremented to: {self.conversation_turns}")
-
-            if decision.get("action") == "generate_user_requirements":
-                self.conversation_turns = 1  # Reset after generating requirements
-            
-            # 4. Check execution status
+            # 3. Check execution status
             status = execution_result.get("status")
-            
-            # print(f"[Thinking] Action result status: {status}")
             
             if status == "complete":
                 # print("[Thinking] Process completed successfully")
@@ -88,9 +65,6 @@ class EndUserThinking(ThinkingModule):
             elif status == "error":
                 print(f"[Thinking] Error occurred: {execution_result.get('reason')}")
                 break
-        
-        # print(f"[Thinking] Decision process finished.")
-        # print(f"[Thinking] Total conversation turns: {self.conversation_turns}\n")
 
     def _make_decision(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """

@@ -50,15 +50,15 @@ class InterviewerThinking(ThinkingModule):
         """
         print(f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}")
         print(f"[Thinking] Current conversation turns: {self.conversation_turns}")
+
+        if self.conversation_turns > 10:
+            print("[Thinking] Maximum conversation turns reached, generate messages.")
+            self.action.execute({"action" : "generate_user_requirements", "rationale": "Max conversation turns exceeded"}, message)
+            self.conversation_turns = 1
+            return
         
         # Decision-Action loop
         while True:
-
-            if self.conversation_turns > 10:
-                print("[Thinking] Maximum conversation turns reached, generate messages.")
-                self.action.execute({"action" : "generate_user_requirements", "rationale": "Max conversation turns exceeded"}, message)
-                self.conversation_turns = 1
-                break
 
             # 1. Make decision
             decision = self._make_decision(message=message)
@@ -114,9 +114,6 @@ class InterviewerThinking(ThinkingModule):
             else:
                 print(f"[Thinking] Unknown status: {status}, stopping")
                 break
-        
-        # print(f"[Thinking] Decision process finished.")
-        # print(f"[Thinking] Total conversation turns: {self.conversation_turns}\n")
 
     def _make_decision(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """

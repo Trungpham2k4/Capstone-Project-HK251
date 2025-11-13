@@ -139,9 +139,7 @@ Return ONLY the question text, nothing else."""
         
         return {
             "status": "complete",
-            "action": "ask_question",
-            "message_id": message["message_id"],
-            "message": "Question sent, waiting for response"
+            "action": "ask_question"
         }
     
     def retrieve_interview_record_action(self, message: dict, decision: dict) -> Dict[str, Any]:
@@ -258,13 +256,15 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
         
         print(f"[Action] Generated requirements: {req_count} items")
         print(f"[Action] Stored at: {bucket}/{key}")
+
+        self.publisher.publish("artifact_events", {
+            "artifact_type": "user_requirements_list",
+            "artifact_key": key
+        })
         
         return {
             "status": "complete",
-            "action": "generate_user_requirements",
-            "artifact_key": key,
-            "requirements_count": req_count,
-            "bucket": bucket
+            "action": "generate_user_requirements"
         }
     
     def evaluate_saturation_action(self, message: dict, decision: dict) -> Dict[str, Any]:

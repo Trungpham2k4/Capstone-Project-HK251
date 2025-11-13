@@ -114,7 +114,5 @@ Return ONLY the response text."""
         
         return {
             "status": "complete",
-            "action": "respond",
-            "message_id": message["message_id"],
-            "message": "Response sent, waiting for next question"
+            "action": "respond"
         }
