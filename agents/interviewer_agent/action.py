@@ -4,7 +4,7 @@ from utils.common import now_iso, make_id
 from openai import OpenAI
 from typing import Dict, Any, Optional
 import json
-
+import uuid
 from agents.base_agent.action import ActionModule
 
 class InterviewerAction(ActionModule):
@@ -39,7 +39,7 @@ class InterviewerAction(ActionModule):
             return self.ask_question_action(message, decision)
         elif action_type == "generate_user_requirements":
             self.reset_iteration_counter()
-            return self.generate_requirements_action(message, decision)
+            return self.generate_user_requirements_list_action(message, decision)
         elif action_type == "evaluate_saturation":
             return self.evaluate_saturation_action(message, decision)
         elif action_type == "retrieve_interview_record":
@@ -57,9 +57,9 @@ class InterviewerAction(ActionModule):
         Internal method to append conversation turn to interview record.
         Called by ask_question and respond actions.
         """
-        bucket = "interview-records"
+        bucket = "iredev-application"
         conv_key = message.get("conversation_id", "default_conversation")
-        record_key = f"{conv_key}_record.txt"
+        record_key = f"artifacts/interview-records/{conv_key}_record.txt"
         
         # Read existing record
         try:
@@ -147,9 +147,9 @@ Return ONLY the question text, nothing else."""
         Retrieve full conversation record from MinIO.
         Returns data structure compatible with ThinkingModule expectations.
         """
-        bucket = "interview-records"
+        bucket = "iredev-application"
         conv_key = message.get("conversation_id", "default_conversation")
-        record_key = f"{conv_key}_record.txt"
+        record_key = f"artifacts/interview-records/{conv_key}_record.txt"
         
         try:
             data = self.storage.get_object(bucket, record_key)
@@ -185,7 +185,7 @@ Return ONLY the question text, nothing else."""
                 }
             }
     
-    def generate_requirements_action(self, message: dict, decision: dict) -> Dict[str, Any]:
+    def generate_user_requirements_list_action(self, message: dict, decision: dict) -> Dict[str, Any]:
         """
         Generate User Requirements List from conversation.
         Output in plain text format.
@@ -247,8 +247,8 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
             requirements_text = f"ERROR: Failed to generate requirements\n{str(e)}"
         
         # Store in MinIO as plain text
-        bucket = "requirements-artifacts"
-        key = f"user_requirements_{make_id()}.txt"
+        bucket = "iredev-application"
+        key = f"artifacts/user-requirements-list/user_requirements_{make_id()}.txt"
         self.storage.put_object(bucket, key, requirements_text.encode('utf-8'))
         
         # Count requirements (simple heuristic)
@@ -258,6 +258,7 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
         print(f"[Action] Stored at: {bucket}/{key}")
 
         self.publisher.publish("artifact_events", {
+            "message_id": str(uuid.uuid4()),
             "artifact_type": "user_requirements_list",
             "artifact_key": key
         })

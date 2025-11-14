@@ -12,17 +12,18 @@ class MonitorModule:
         self.kafka = kafka_service
         self.topics = subscribe_topics
         self.messages: dict[str, str] = {}
-        self.message_id: str = ""
+        self.handled_message_ids: list[str] = []
 
     def start(self):
         def handler(msg):
-            if msg.get("message_id", None) is not None and msg.get("message_id") == self.message_id:
-                print("[Monitor] Duplicate message received, ignoring.")
-                return
+            if msg.get("message_id", None) is not None:
+                if self.check_duplicate_message(msg["message_id"], self.handled_message_ids):
+                    print("[Monitor] Duplicate message received, ignoring.")
+                    return
+                self.handled_message_ids.append(msg["message_id"])
             try:
                 print(f"[Monitor] Received: {msg}")
                 self.messages = msg
-                self.message_id = msg.get("message_id", "")
                 self.trigger_thinking() 
             except Exception as e:
                 print("[Monitor] Handler error:", e)
@@ -31,3 +32,6 @@ class MonitorModule:
 
     def trigger_thinking(self):
         self.thinking_module.decide(self.messages)
+
+    def check_duplicate_message(self, message_id: str, handled_messages: list[str]) -> bool:
+        return message_id in handled_messages

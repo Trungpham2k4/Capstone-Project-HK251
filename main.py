@@ -2,6 +2,7 @@ import os
 from agents.interviewer_agent.interviewer_agent import InterviewerAgent
 from agents.enduser_agent.enduser_agent import EndUserAgent
 from agents.analyst_agent.analyst_agent import AnalystAgent
+from agents.archivist_agent.archivist_agent import ArchivistAgent
 import time
 
 from services.kafka_service import KafkaService
@@ -41,16 +42,22 @@ def build_flow():
         minio_service=minio_service,
         llm=llm_client
     )
+    archivist = ArchivistAgent(
+        kafka_service=kafka_service,
+        minio_service=minio_service,
+        llm=llm_client
+    )
 
     # Start agents
     print("[Flow] Starting agents...")
     interviewer.start()
     enduser.start()
     analyst.start()
+    archivist.start()
 
     # Wait for agents to connect to Kafka
     print("[Flow] Waiting for Kafka connections...")
-    time.sleep(5)
+    time.sleep(10)
     
     print("\n" + "-"*70)
     print("  STARTING INTERVIEW")
@@ -85,25 +92,6 @@ def build_flow():
     print("  INTERVIEW IN PROGRESS")
     print("="*70)
     print("\nMonitoring conversation... (Press Ctrl+C to stop)\n")
-
-
-    ### Analyst Agent Section (Uncomment to enable) ###
-    # analyst = AnalystAgent(
-    #     kafka_service=kafka_service,
-    #     minio_service=minio_service,
-    #     llm=llm_client
-    # )
-    # analyst.start()
-    # print("[Flow] Starting Analyst Agent...")
-    # time.sleep(5)
-
-    #### Simulate a message to Analyst to generate system requirements ####
-    # kafka_service.publish("interviewer_analyst", {
-    #     "sent_from": "Interviewer",
-    #     "sent_to": "Analyst",
-    #     "user_requirements_list_file_name": "user_requirements_A-bf801f74.txt",
-    #     "operating_environment_list_file_name": "Operating Env List.txt",
-    # })
     
     try:
         # Keep running to observe the conversation
@@ -114,9 +102,7 @@ def build_flow():
         print("\n\n" + "="*70)
         print("  INTERVIEW STOPPED")
         print("="*70)
-        print("\n📁 Check MinIO buckets for generated artifacts:")
-        print("   • interview-records/interview_session_001_record.txt")
-        print("   • requirements-artifacts/user_requirements_*.txt")
+        print("\n📁 Check MinIO buckets for generated artifacts")
         print("\n")
 
 if __name__ == "__main__":
