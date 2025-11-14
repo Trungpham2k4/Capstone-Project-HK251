@@ -32,17 +32,3 @@ class MinioService:
 
     def get_presigned_url(self, bucket: str, key: str, expire_hours=1):
         return self.client.presigned_get_object(bucket, key, expires=timedelta(hours=expire_hours))
-
-# if __name__ == "__main__":
-#     # Simple test
-#     minio_service = MinioService()
-#     bucket_name = "test-bucket"
-#     object_key = "hello.txt"
-#     content = b"Hello, MinIO!"
-
-#     minio_service.put_object(bucket_name, object_key, content)
-#     retrieved_content = minio_service.get_object(bucket_name, object_key)
-#     print("Retrieved content:", retrieved_content.decode("utf-8"))
-
-#     url = minio_service.get_presigned_url(bucket_name, object_key)
-#     print("Presigned URL:", url)

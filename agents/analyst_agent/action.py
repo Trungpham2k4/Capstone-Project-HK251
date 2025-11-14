@@ -4,7 +4,7 @@ from services.minio_service import MinioService
 from utils.common import now_iso, make_id
 from openai import OpenAI
 from typing import Dict, Any
-
+import uuid
 from agents.base_agent.action import ActionModule
 from agents.analyst_agent.memory import AnalystMemory
 from agents.analyst_agent.profile import AnalystProfile
@@ -91,10 +91,10 @@ class AnalystAction(ActionModule):
             }
 
         # Store system requirements in artifact pool (MinIO) and memory
-        artifact_id = f"analyst-artifacts/system_requirements_{make_id()}.txt"
+        artifact_id = f"artifacts/system-requirements-list/system_requirements_{make_id()}.txt"
         try:
             self.storage.put_object(
-                "requirements-artifacts",
+                "iredev-application",
                 artifact_id,
                 answer.encode('utf-8')
             )
@@ -112,6 +112,7 @@ class AnalystAction(ActionModule):
 
         # Publish event to Kafka
         self.publisher.publish(topic="artifact_events", message={
+            "message_id": str(uuid.uuid4()),
             "artifact_type": "system_requirements_list",
             "artifact_key": artifact_id
         })
@@ -125,9 +126,9 @@ class AnalystAction(ActionModule):
         Retrieve user requirement list and operating environment list from MinIO.
         """
         # Bucket and object keys
-        bucket = "requirements-artifacts"
-        user_requirements_key = message.get("user_requirements_list_file_name", "User Requirements List.txt")
-        operating_environment_key = message.get("operating_environment_list_file_name", "Operating Env List.txt")
+        bucket = "iredev-application"
+        user_requirements_key = message.get("user_requirements_list_file_name", "artifacts/user-requirements-list/User Requirements List.txt")
+        operating_environment_key = message.get("operating_environment_list_file_name", "artifacts/operating-environment-list/Operating Env List.txt")
 
         try:
             user_requirements_data = self.storage.get_object(bucket, user_requirements_key)
@@ -251,10 +252,10 @@ class AnalystAction(ActionModule):
                 "reason": "llm_failure"
             }
         
-        artifact_id = f"analyst-artifacts/requirement_model_{make_id()}.txt"
+        artifact_id = f"artifacts/requirements-model/requirement_model_{make_id()}.txt"
         try:
             self.storage.put_object(
-                "requirements-artifacts",
+                "iredev-application",
                 artifact_id,
                 answer.encode('utf-8')
             )
@@ -269,6 +270,7 @@ class AnalystAction(ActionModule):
         
         # Publish event to Kafka
         self.publisher.publish("artifact_events", message={
+            "message_id": str(uuid.uuid4()),
             "artifact_type": "requirements_model",
             "artifact_key": artifact_id
         })

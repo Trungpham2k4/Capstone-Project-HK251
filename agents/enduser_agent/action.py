@@ -38,9 +38,9 @@ class EndUserAction(ActionModule):
         Internal method to append conversation turn to interview record.
         Called by ask_question and respond actions.
         """
-        bucket = "interview-records"
+        bucket = "iredev-application"
         conv_key = message.get("conversation_id", "default_conversation")
-        record_key = f"{conv_key}_record.txt"
+        record_key = f"artifacts/interview-records/{conv_key}_record.txt"
         
         # Read existing record
         try:
