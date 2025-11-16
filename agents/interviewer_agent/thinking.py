@@ -61,15 +61,23 @@ class InterviewerThinking(ThinkingModule):
         Main decision loop: Think → Act → Check status → Repeat if needed.
         Tracks conversation turns: increments only when ask_question is executed.
         """
-        print(f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}")
+        print(
+            f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}"
+        )
         print(f"[Thinking] Current conversation turns: {self.conversation_turns}")
 
         if self.conversation_turns > 10:
             print("[Thinking] Maximum conversation turns reached, generate messages.")
-            self.action.execute({"action" : "generate_user_requirements", "rationale": "Max conversation turns exceeded"}, message)
+            self.action.execute(
+                {
+                    "action": "generate_user_requirements",
+                    "rationale": "Max conversation turns exceeded",
+                },
+                message,
+            )
             self.conversation_turns = 1
             return
-        
+
         # Decision-Action loop
         while True:
 

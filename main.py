@@ -35,14 +35,10 @@ def build_flow():
         kafka_service=kafka_service, minio_service=minio_service, llm=llm_client
     )
     analyst = AnalystAgent(
-        kafka_service=kafka_service,
-        minio_service=minio_service,
-        llm=llm_client
+        kafka_service=kafka_service, minio_service=minio_service, llm=llm_client
     )
     archivist = ArchivistAgent(
-        kafka_service=kafka_service,
-        minio_service=minio_service,
-        llm=llm_client
+        kafka_service=kafka_service, minio_service=minio_service, llm=llm_client
     )
 
     # Start agents
@@ -55,8 +51,8 @@ def build_flow():
     # Wait for agents to connect to Kafka
     print("[Flow] Waiting for Kafka connections...")
     time.sleep(10)
-    
-    print("\n" + "-"*70)
+
+    print("\n" + "-" * 70)
     print("  STARTING INTERVIEW")
     print("-" * 70 + "\n")
 
@@ -88,7 +84,7 @@ def build_flow():
     print("  INTERVIEW IN PROGRESS")
     print("=" * 70)
     print("\nMonitoring conversation... (Press Ctrl+C to stop)\n")
-    
+
     try:
         # Keep running to observe the conversation
         while True:
@@ -97,7 +93,7 @@ def build_flow():
     except KeyboardInterrupt:
         print("\n\n" + "=" * 70)
         print("  INTERVIEW STOPPED")
-        print("="*70)
+        print("=" * 70)
         print("\n📁 Check MinIO buckets for generated artifacts")
         print("\n")
 
