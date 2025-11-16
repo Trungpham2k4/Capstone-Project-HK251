@@ -36,3 +36,31 @@ class Config:
             return cls.param_config["llm"]["model_name"]
         except Exception:
             return "gpt-5-nano"
+
+    @classmethod
+    def get_embed_name(cls):
+        try:
+            return cls.param_config["llm"]["embed_name"]
+        except Exception:
+            return "sentence-transformers/all-MiniLM-L6-v2"
+
+    @classmethod
+    def get_embed_dim(cls):
+        try:
+            return cls.param_config["llm"]["embed_dim"]
+        except Exception:
+            return 384
+
+    @classmethod
+    def get_qdrant_host(cls):
+        try:
+            return cls.param_config["qdrant"]["host"]
+        except Exception:
+            return "localhost"
+
+    @classmethod
+    def get_qdrant_port(cls):
+        try:
+            return cls.param_config["qdrant"]["port"]
+        except Exception:
+            return 6333
