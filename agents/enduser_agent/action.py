@@ -2,20 +2,26 @@ from services.kafka_service import KafkaService
 from services.minio_service import MinioService
 from utils.common import now_iso, make_id
 from openai import OpenAI
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from config import Config
 
 from agents.base_agent.action import ActionModule
+from agents.enduser_agent.memory import EndUserMemory
 
 
 class EndUserAction(ActionModule):
 
     def __init__(
-        self, publisher: KafkaService, storage_client: MinioService, llm: OpenAI
+        self,
+        publisher: KafkaService,
+        storage_client: MinioService,
+        llm: OpenAI,
+        memory: Optional[EndUserMemory] = None,
     ):
         self.publisher = publisher
         self.storage = storage_client
         self.llm = llm
+        self.memory = memory
 
     def execute(self, decision: Dict[str, Any], message: dict) -> Dict[str, Any]:
         """Execute the action from thinking module decision."""
@@ -41,7 +47,7 @@ class EndUserAction(ActionModule):
         bucket = "iredev-application"
         conv_key = message.get("conversation_id", "default_conversation")
         record_key = f"artifacts/interview-records/{conv_key}_record.txt"
-        
+
         # Read existing record
         try:
             existing_data = self.storage.get_object(bucket, record_key)
@@ -58,6 +64,8 @@ class EndUserAction(ActionModule):
 
         # Write back to MinIO
         self.storage.put_object(bucket, record_key, updated_text.encode("utf-8"))
+        if self.memory:
+            self.memory.write(updated_text, "interview-records")
 
         print(f"[Action] Appended to record: {record_key}")
 
@@ -112,7 +120,4 @@ Return ONLY the response text."""
         # Publish to Kafka
         self.publisher.publish("enduser_interviewer", message)
 
-        return {
-            "status": "complete",
-            "action": "respond"
-        }
+        return {"status": "complete", "action": "respond"}
