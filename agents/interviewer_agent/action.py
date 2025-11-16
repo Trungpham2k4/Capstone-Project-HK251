@@ -4,19 +4,26 @@ from utils.common import now_iso, make_id
 from openai import OpenAI
 from typing import Dict, Any, Optional
 import json
-import uuidfrom config import Config
+import uuid
+from config import Config
 
 from agents.base_agent.action import ActionModule
+from agents.interviewer_agent.memory import InterviewerMemory
 
 
 class InterviewerAction(ActionModule):
 
     def __init__(
-        self, publisher: KafkaService, storage_client: MinioService, llm: OpenAI
+        self,
+        publisher: KafkaService,
+        storage_client: MinioService,
+        llm: OpenAI,
+        memory: Optional[InterviewerMemory] = None,
     ):
         self.publisher = publisher
         self.storage = storage_client
         self.llm = llm
+        self.memory = memory
         self.max_iterations = 100
         self.current_iteration = 0
 
@@ -60,7 +67,7 @@ class InterviewerAction(ActionModule):
         bucket = "iredev-application"
         conv_key = message.get("conversation_id", "default_conversation")
         record_key = f"artifacts/interview-records/{conv_key}_record.txt"
-        
+
         # Read existing record
         try:
             existing_data = self.storage.get_object(bucket, record_key)
@@ -77,6 +84,9 @@ class InterviewerAction(ActionModule):
 
         # Write back to MinIO
         self.storage.put_object(bucket, record_key, updated_text.encode("utf-8"))
+
+        if self.memory:
+            self.memory.write(updated_text, "interview-records")
 
         print(f"[Action] Appended to record: {record_key}")
 
@@ -138,10 +148,7 @@ Return ONLY the question text, nothing else."""
         # Publish to Kafka
         self.publisher.publish("interviewer_enduser", message)
 
-        return {
-            "status": "complete",
-            "action": "ask_question"
-        }
+        return {"status": "complete", "action": "ask_question"}
 
     def retrieve_interview_record_action(
         self, message: dict, decision: dict
@@ -153,7 +160,7 @@ Return ONLY the question text, nothing else."""
         bucket = "iredev-application"
         conv_key = message.get("conversation_id", "default_conversation")
         record_key = f"artifacts/interview-records/{conv_key}_record.txt"
-        
+
         try:
             data = self.storage.get_object(bucket, record_key)
             record_text = data.decode("utf-8")
@@ -187,8 +194,10 @@ Return ONLY the question text, nothing else."""
                     "conversation_id": conv_key,
                 },
             }
-    
-    def generate_user_requirements_list_action(self, message: dict, decision: dict) -> Dict[str, Any]:
+
+    def generate_user_requirements_list_action(
+        self, message: dict, decision: dict
+    ) -> Dict[str, Any]:
         """
         Generate User Requirements List from conversation.
         Output in plain text format.
@@ -249,24 +258,26 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
         # Store in MinIO as plain text
         bucket = "iredev-application"
         key = f"artifacts/user-requirements-list/user_requirements_{make_id()}.txt"
-        self.storage.put_object(bucket, key, requirements_text.encode('utf-8'))
-        
+        self.storage.put_object(bucket, key, requirements_text.encode("utf-8"))
+        if self.memory:
+            self.memory.write(requirements_text, "user-requirements-list")
+
         # Count requirements (simple heuristic)
         req_count = requirements_text.count("REQ-")
 
         print(f"[Action] Generated requirements: {req_count} items")
         print(f"[Action] Stored at: {bucket}/{key}")
 
-        self.publisher.publish("artifact_events", {
-            "message_id": str(uuid.uuid4()),
-            "artifact_type": "user_requirements_list",
-            "artifact_key": key
-        })
-        
-        return {
-            "status": "complete",
-            "action": "generate_user_requirements"
-        }
+        self.publisher.publish(
+            "artifact_events",
+            {
+                "message_id": str(uuid.uuid4()),
+                "artifact_type": "user_requirements_list",
+                "artifact_key": key,
+            },
+        )
+
+        return {"status": "complete", "action": "generate_user_requirements"}
 
     def evaluate_saturation_action(
         self, message: dict, decision: dict
