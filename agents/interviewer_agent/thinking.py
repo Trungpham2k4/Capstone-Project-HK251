@@ -166,17 +166,17 @@ class InterviewerThinking(ThinkingModule):
 
         # Get decision from LLM
         try:
-            response = self.llm.chat.completions.create(
+            response = self.llm.responses.create(
                 model=Config().get_llm_model_name(),
-                messages=[
+                input=[
                     {"role": "system", "content": self.profile.system_prompt()},
                     {"role": "user", "content": prompt},
                 ],
                 store=True,
-                reasoning_effort="medium",
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
+                reasoning={"effort": "medium"},
+                text={
+                    "format": {
+                        "type": "json_schema",
                         "strict": True,
                         "name": "DecisionOutput",
                         "schema": {
@@ -188,11 +188,11 @@ class InterviewerThinking(ThinkingModule):
                             "required": ["rationale", "action"],
                             "additionalProperties": False,
                         },
-                    },
+                    }
                 },
             )
 
-            raw_output = response.choices[0].message.content.strip()
+            raw_output = response.output_text
             print(f"[Thinking] LLM raw output: {raw_output[:200]}...")
 
         except Exception as e:

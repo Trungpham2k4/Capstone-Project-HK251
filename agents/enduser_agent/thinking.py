@@ -42,15 +42,17 @@ class EndUserThinking(ThinkingModule):
         self.memory = memory
         self.action = action
         self.llm = llm_client
-        self.user_input = "" # Cái này chưa có tí phải thêm bằng cách nào đó
+        self.user_input = ""  # Cái này chưa có tí phải thêm bằng cách nào đó
 
     def decide(self, message: Dict[str, Any]):
         """
         Main decision loop: Think → Act → Check status → Repeat if needed.
         Tracks conversation turns: increments only when ask_question is executed.
         """
-        print(f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}")
-        
+        print(
+            f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}"
+        )
+
         # Decision-Action loop
         while True:
 
@@ -63,10 +65,10 @@ class EndUserThinking(ThinkingModule):
 
             # 2. Execute action
             execution_result = self.action.execute(decision, message=message)
-            
+
             # 3. Check execution status
             status = execution_result.get("status")
-            
+
             if status == "complete":
                 # print("[Thinking] Process completed successfully")
                 break
@@ -83,17 +85,17 @@ class EndUserThinking(ThinkingModule):
 
         # Get decision from LLM
         try:
-            response = self.llm.chat.completions.create(
+            response = self.llm.responses.create(
                 model=Config().get_llm_model_name(),
-                messages=[
+                input=[
                     {"role": "system", "content": self.profile.system_prompt()},
                     {"role": "user", "content": prompt},
                 ],
                 store=True,
-                reasoning_effort="medium",
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
+                reasoning={"effort": "medium"},
+                text={
+                    "format": {
+                        "type": "json_schema",
                         "strict": True,
                         "name": "DecisionOutput",
                         "schema": {
@@ -105,11 +107,11 @@ class EndUserThinking(ThinkingModule):
                             "required": ["rationale", "action"],
                             "additionalProperties": False,
                         },
-                    },
+                    }
                 },
             )
 
-            raw_output = response.choices[0].message.content.strip()
+            raw_output = response.output_text
             print(f"[Thinking] LLM raw output: {raw_output[:200]}...")
 
         except Exception as e:
