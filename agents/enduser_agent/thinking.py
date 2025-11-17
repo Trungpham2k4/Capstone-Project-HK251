@@ -11,13 +11,15 @@ from agents.enduser_agent.action import EndUserAction
 
 from agents.base_agent.thinking import ThinkingModule
 from openai import OpenAI
+from config import Config
 
 ### Idea for interaction between ThinkingModule and ActionModule:
-### Build prompt in Thinking module to get next action and reasoning process from LLM 
+### Build prompt in Thinking module to get next action and reasoning process from LLM
 ### Action module executes the action with reasoning provided by Thinking module, after finishing the action,
 ### It can send back to Thinking module and continue to reason about next steps or finish.
 
 ALLOWED_ACTIONS_ENDUSER = {"respond", "clarify"}
+
 
 class EndUserThinking(ThinkingModule):
     """
@@ -27,38 +29,46 @@ class EndUserThinking(ThinkingModule):
     "reasoning": string
     """
 
-    def __init__(self, profile: EndUserProfile, knowledge: EndUserKnowledge,
-                 memory: EndUserMemory, action: EndUserAction, llm_client: OpenAI):
+    def __init__(
+        self,
+        profile: EndUserProfile,
+        knowledge: EndUserKnowledge,
+        memory: EndUserMemory,
+        action: EndUserAction,
+        llm_client: OpenAI,
+    ):
         self.profile = profile
         self.knowledge = knowledge
         self.memory = memory
         self.action = action
         self.llm = llm_client
-        self.user_input = "" # Cái này chưa có tí phải thêm bằng cách nào đó
+        self.user_input = ""  # Cái này chưa có tí phải thêm bằng cách nào đó
 
     def decide(self, message: Dict[str, Any]):
         """
         Main decision loop: Think → Act → Check status → Repeat if needed.
         Tracks conversation turns: increments only when ask_question is executed.
         """
-        print(f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}")
-        
+        print(
+            f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}"
+        )
+
         # Decision-Action loop
         while True:
 
             # 1. Make decision
             decision = self._make_decision(message)
-            
+
             if not decision:
                 print("[Thinking] Failed to make valid decision, stopping.")
                 break
-            
+
             # 2. Execute action
             execution_result = self.action.execute(decision, message=message)
-            
+
             # 3. Check execution status
             status = execution_result.get("status")
-            
+
             if status == "complete":
                 # print("[Thinking] Process completed successfully")
                 break
@@ -76,10 +86,10 @@ class EndUserThinking(ThinkingModule):
         # Get decision from LLM
         try:
             response = self.llm.responses.create(
-                model="gpt-5-nano",
+                model=Config().get_llm_model_name(),
                 input=[
                     {"role": "system", "content": self.profile.system_prompt()},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 store=True,
                 reasoning={"effort": "medium"},
@@ -92,44 +102,44 @@ class EndUserThinking(ThinkingModule):
                             "type": "object",
                             "properties": {
                                 "rationale": {"type": "string"},
-                                "action": {"type": "string"}
+                                "action": {"type": "string"},
                             },
                             "required": ["rationale", "action"],
-                            "additionalProperties": False
-                        }
+                            "additionalProperties": False,
+                        },
                     }
-                }
+                },
             )
 
             raw_output = response.output_text
             print(f"[Thinking] LLM raw output: {raw_output[:200]}...")
-            
+
         except Exception as e:
             print(f"[Thinking] Error calling LLM: {e}")
             return None
-        
+
         # Parse and validate decision
         decision = self.parse_and_validate_decision(raw_output, allowed_actions)
-        
+
         if not decision:
             print("[Thinking] Invalid decision from LLM, using default")
             decision = {
                 "rationale": "Default action: provide response",
-                "action": "respond"
+                "action": "respond",
             }
-        
+
         return decision
 
     def _build_enduser_prompt(self, message: Dict[str, Any]) -> str:
         """Build prompt for EndUser agent decision-making."""
         print("[Thinking] Building enduser prompt...")
-        
+
         question = message.get("content", "")
-        
+
         # Knowledge and memory (simplified)
         kb_text = "No relevant knowledge found."
         mem_text = "No recent memory."
-        
+
         if self.knowledge:
             try:
                 kb_snips = self.knowledge.retrieve(question, k=3)
@@ -137,7 +147,7 @@ class EndUserThinking(ThinkingModule):
                     kb_text = "\n".join(f"- {s.get('text', '')}" for s in kb_snips)
             except:
                 pass
-        
+
         if self.memory:
             try:
                 mem_snips = self.memory.semantic_search(question, top_k=3)

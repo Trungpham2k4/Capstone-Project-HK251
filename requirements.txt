@@ -1,11 +1,5 @@
-langchain
-langchain-openai
-langchain-community
-langchain-anthropic
-pydantic
-python-dotenv
-langgraph
-faiss-cpu
+openai
+dotenv
 sentence-transformers
 kafka-python
 minio

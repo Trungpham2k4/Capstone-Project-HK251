@@ -11,13 +11,25 @@ from agents.analyst_agent.action import AnalystAction
 
 from agents.base_agent.thinking import ThinkingModule
 from openai import OpenAI
+from config import Config
 
-ALLOWED_ACTIONS_ANALYST = {"generate_system_requirements", "choose_requirement_model", "generate_requirement_model"}
+ALLOWED_ACTIONS_ANALYST = {
+    "generate_system_requirements",
+    "choose_requirement_model",
+    "generate_requirement_model",
+}
+
 
 class AnalystThinking(ThinkingModule):
 
-    def __init__(self, profile: AnalystProfile, knowledge: AnalystKnowledge,
-                 memory: AnalystMemory, action: AnalystAction, llm_client: OpenAI):
+    def __init__(
+        self,
+        profile: AnalystProfile,
+        knowledge: AnalystKnowledge,
+        memory: AnalystMemory,
+        action: AnalystAction,
+        llm_client: OpenAI,
+    ):
         self.profile = profile
         self.knowledge = knowledge
         self.memory = memory
@@ -26,24 +38,26 @@ class AnalystThinking(ThinkingModule):
 
     def decide(self, message: Dict[str, Any]):
 
-        print(f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}")
-        
+        print(
+            f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}"
+        )
+
         # Decision-Action loop
         while True:
 
             # 1. Make decision
             decision = self._make_decision(message)
-            
+
             if not decision:
                 print("[Thinking] Failed to make valid decision, stopping.")
                 break
-            
+
             # 2. Execute action
             execution_result = self.action.execute(decision, message=message)
-            
+
             # 4. Check execution status
             status = execution_result.get("status")
-            
+
             if status == "complete":
                 # print("[Thinking] Process completed successfully")
                 break
@@ -64,10 +78,10 @@ class AnalystThinking(ThinkingModule):
         # Get decision from LLM
         try:
             response = self.llm.responses.create(
-                model="gpt-5-nano",
+                model=Config().get_llm_model_name(),
                 input=[
                     {"role": "system", "content": self.profile.system_prompt()},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 store=True,
                 reasoning={"effort": "medium"},
@@ -80,32 +94,32 @@ class AnalystThinking(ThinkingModule):
                             "type": "object",
                             "properties": {
                                 "rationale": {"type": "string"},
-                                "action": {"type": "string"}
+                                "action": {"type": "string"},
                             },
                             "required": ["rationale", "action"],
-                            "additionalProperties": False
-                        }
+                            "additionalProperties": False,
+                        },
                     }
-                }
+                },
             )
 
             raw_output = response.output_text
             print(f"[Thinking] LLM raw output: {raw_output[:200]}...")
-            
+
         except Exception as e:
             print(f"[Thinking] Error calling LLM: {e}")
             return None
-        
+
         # Parse and validate decision
         decision = self.parse_and_validate_decision(raw_output, allowed_actions)
-        
+
         if not decision:
             print("[Thinking] Invalid decision from LLM, using default")
             decision = {
                 "rationale": "Default action: provide response",
-                "action": "respond"
+                "action": "respond",
             }
-        
+
         return decision
 
     def _build_analyst_prompt(self, message: Dict[str, Any]) -> str:
@@ -113,12 +127,15 @@ class AnalystThinking(ThinkingModule):
         print("[Thinking] Building analyst prompt...")
 
         # Build status indicators
-        system_requirement_content, system_requirement_generated = self.memory.read("system_requirements")
-        requirement_model_content, requirement_model_chosen = self.memory.read("requirement_model")
+        system_requirement_generated = self.memory.get_systems_requirements()
+        requirement_model_content = self.memory.get_requirement_model()
 
-        system_requirement_status = "✓ GENERATED" if system_requirement_generated else "✗ NOT GENERATED"
-        requirement_model_status = f"✓ CHOSEN" if requirement_model_chosen else "✗ NOT CHOSEN"
-
+        system_requirement_status = (
+            "✓ GENERATED" if system_requirement_generated else "✗ NOT GENERATED"
+        )
+        requirement_model_status = (
+            f"✓ CHOSEN" if requirement_model_content != "" else "✗ NOT CHOSEN"
+        )
 
         # Knowledge (simplified)
         kb_text = "No relevant knowledge found."
@@ -130,7 +147,7 @@ class AnalystThinking(ThinkingModule):
         - Requirement Model Chosen Status: {requirement_model_status}
 
         CHOSEN REQUIREMENT MODEL: 
-        {requirement_model_content if requirement_model_chosen else "N/A"}
+        {requirement_model_content if requirement_model_content != '' else "N/A"}
 
         CONTEXT:
         - Knowledge context: {kb_text}

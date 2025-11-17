@@ -11,13 +11,20 @@ from agents.interviewer_agent.action import InterviewerAction
 
 from agents.base_agent.thinking import ThinkingModule
 from openai import OpenAI
+from config import Config
 
 ### Idea for interaction between ThinkingModule and ActionModule:
-### Build prompt in Thinking module to get next action and reasoning process from LLM 
+### Build prompt in Thinking module to get next action and reasoning process from LLM
 ### Action module executes the action with reasoning provided by Thinking module, after finishing the action,
 ### It can send back to Thinking module and continue to reason about next steps or finish.
 
-ALLOWED_ACTIONS_INTERVIEWER = {"ask_question","generate_user_requirements","evaluate_saturation","retrieve_interview_record"}
+ALLOWED_ACTIONS_INTERVIEWER = {
+    "ask_question",
+    "generate_user_requirements",
+    "evaluate_saturation",
+    "retrieve_interview_record",
+}
+
 
 class InterviewerThinking(ThinkingModule):
     """
@@ -27,8 +34,14 @@ class InterviewerThinking(ThinkingModule):
     "reasoning": string
     """
 
-    def __init__(self, profile: InterviewerProfile, knowledge: InterviewerKnowledge,
-                 memory: InterviewerMemory, action: InterviewerAction, llm_client: OpenAI):
+    def __init__(
+        self,
+        profile: InterviewerProfile,
+        knowledge: InterviewerKnowledge,
+        memory: InterviewerMemory,
+        action: InterviewerAction,
+        llm_client: OpenAI,
+    ):
         self.profile = profile
         self.knowledge = knowledge
         self.memory = memory
@@ -48,30 +61,40 @@ class InterviewerThinking(ThinkingModule):
         Main decision loop: Think → Act → Check status → Repeat if needed.
         Tracks conversation turns: increments only when ask_question is executed.
         """
-        print(f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}")
+        print(
+            f"\n[Thinking] Starting decision process for message from {message.get('sent_from')}"
+        )
         print(f"[Thinking] Current conversation turns: {self.conversation_turns}")
 
         if self.conversation_turns > 10:
             print("[Thinking] Maximum conversation turns reached, generate messages.")
-            self.action.execute({"action" : "generate_user_requirements", "rationale": "Max conversation turns exceeded"}, message)
+            self.action.execute(
+                {
+                    "action": "generate_user_requirements",
+                    "rationale": "Max conversation turns exceeded",
+                },
+                message,
+            )
             self.conversation_turns = 1
             return
-        
+
         # Decision-Action loop
         while True:
 
             # 1. Make decision
             decision = self._make_decision(message=message)
-            
+
             if not decision:
                 print("[Thinking] Failed to make valid decision, stopping.")
                 break
-            
+
             # 2. Execute action
             execution_result = self.action.execute(decision, message)
-            
+
             # 3. Update conversation turns if ask_question was executed
-            if decision.get("action") == "ask_question" and execution_result.get("status") in ["waiting", "complete"]:
+            if decision.get("action") == "ask_question" and execution_result.get(
+                "status"
+            ) in ["waiting", "complete"]:
                 self.conversation_turns += 1
                 self.retrieve_record_done = False  # Reset for next turn
                 self.saturation_evaluated = False  # Reset for next turn
@@ -82,12 +105,12 @@ class InterviewerThinking(ThinkingModule):
 
             if decision.get("action") == "generate_user_requirements":
                 self.conversation_turns = 1  # Reset after generating requirements
-            
+
             # 4. Check execution status
             status = execution_result.get("status")
-            
+
             # print(f"[Thinking] Action result status: {status}")
-            
+
             if status == "complete":
                 # print("[Thinking] Process completed successfully")
                 break
@@ -101,16 +124,22 @@ class InterviewerThinking(ThinkingModule):
             elif status == "continue":
                 # Action completed, but process should continue with next decision
                 print("[Thinking] Continuing to next decision...")
-                
+
                 # Update message with execution result if needed
                 if "data" in execution_result:
                     if execution_result["action"] == "retrieve_interview_record":
                         self.retrieve_record_done = True
-                        self.record_text = execution_result["data"].get("record_text", "")
+                        self.record_text = execution_result["data"].get(
+                            "record_text", ""
+                        )
                     if execution_result["action"] == "evaluate_saturation":
                         self.saturation_evaluated = True
-                        self.saturation_score = execution_result["data"].get("saturation_score", None)
-                        self.saturation_reasoning = execution_result["data"].get("reasoning", "")
+                        self.saturation_score = execution_result["data"].get(
+                            "saturation_score", None
+                        )
+                        self.saturation_reasoning = execution_result["data"].get(
+                            "reasoning", ""
+                        )
             else:
                 print(f"[Thinking] Unknown status: {status}, stopping")
                 break
@@ -122,24 +151,26 @@ class InterviewerThinking(ThinkingModule):
         # Determine which prompt to use based on roles
         sent_from = message.get("sent_from")
         sent_to = message.get("sent_to")
-        
+
         if sent_from == "User":
             self.user_input = message.get("content", "")
 
-        if (sent_from == "Enduser" and sent_to == "Interviewer") or (sent_from == "User" and sent_to == "Interviewer"):
+        if (sent_from == "Enduser" and sent_to == "Interviewer") or (
+            sent_from == "User" and sent_to == "Interviewer"
+        ):
             prompt = self._build_interviewer_prompt(message)
             allowed_actions = ALLOWED_ACTIONS_INTERVIEWER
         else:
             print(f"[Thinking] Unknown role direction: {sent_from} → {sent_to}")
             return None
-        
+
         # Get decision from LLM
         try:
             response = self.llm.responses.create(
-                model="gpt-5-nano",
+                model=Config().get_llm_model_name(),
                 input=[
                     {"role": "system", "content": self.profile.system_prompt()},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 store=True,
                 reasoning={"effort": "medium"},
@@ -152,57 +183,54 @@ class InterviewerThinking(ThinkingModule):
                             "type": "object",
                             "properties": {
                                 "rationale": {"type": "string"},
-                                "action": {"type": "string"}
+                                "action": {"type": "string"},
                             },
                             "required": ["rationale", "action"],
-                            "additionalProperties": False
-                        }
+                            "additionalProperties": False,
+                        },
                     }
-                }
+                },
             )
 
             raw_output = response.output_text
             print(f"[Thinking] LLM raw output: {raw_output[:200]}...")
-            
+
         except Exception as e:
             print(f"[Thinking] Error calling LLM: {e}")
             return None
-        
+
         # Parse and validate decision
         decision = self.parse_and_validate_decision(raw_output, allowed_actions)
-        
+
         if not decision:
             print("[Thinking] Invalid decision from LLM, using default")
             # Default fallback based on role
             if sent_from == "Enduser":
                 decision = {
                     "rationale": "Default action: ask follow-up question",
-                    "action": "ask_question"
+                    "action": "ask_question",
                 }
-        
+
         return decision
-    
+
     def _build_interviewer_prompt(self, message: Dict[str, Any]) -> str:
         """Build prompt for Interviewer agent decision-making."""
 
         print("[Thinking] Building interviewer prompt...")
-        
+
         # Get context data if available (from previous actions like retrieve_interview_record)
         # context_data = message.get("context_data", {})
         conversation_turns = self.conversation_turns
-        
+
         # Retrieve relevant knowledge and memory (simplified for now)
         content = message.get("content", "")
 
-
         # Interview record data (if retrieved)
         # record_text = context_data.get("record_text", "")
-        
+
         # Saturation data (if evaluated)
         # saturation_score = context_data.get("saturation_score", None)
         # saturation_reasoning = context_data.get("reasoning", "")
-
-        
 
         # Build context sections
         record_section = ""
@@ -211,7 +239,7 @@ class InterviewerThinking(ThinkingModule):
                 INTERVIEW RECORD:
                 {self.record_text}
             """
-        
+
         saturation_section = ""
         if self.saturation_score is not None:
             saturation_section = f"""
@@ -221,10 +249,18 @@ class InterviewerThinking(ThinkingModule):
                 """
 
         # Build status indicators
-        record_status = "✓ RETRIEVED" if self.retrieve_record_done else "✗ NOT RETRIEVED"
-        saturation_status = f"✓ EVALUATED (score: {self.saturation_score:.2f})" if self.saturation_evaluated else "✗ NOT EVALUATED"
+        record_status = (
+            "✓ RETRIEVED" if self.retrieve_record_done else "✗ NOT RETRIEVED"
+        )
+        saturation_status = (
+            f"✓ EVALUATED (score: {self.saturation_score:.2f})"
+            if self.saturation_evaluated
+            else "✗ NOT EVALUATED"
+        )
 
-        print(f"[Thinking] Record status: {record_status}, Saturation status: {saturation_status}")
+        print(
+            f"[Thinking] Record status: {record_status}, Saturation status: {saturation_status}"
+        )
 
         # Knowledge retrieval (placeholder - replace with actual implementation)
         kb_text = "No relevant prior knowledge found."
@@ -235,7 +271,7 @@ class InterviewerThinking(ThinkingModule):
                     kb_text = "\n".join(f"- {s.get('text', '')}" for s in kb_snips)
             except:
                 pass
-        
+
         # Memory retrieval (placeholder)
         mem_text = "No recent memory retrieved."
         if self.memory:
@@ -303,5 +339,3 @@ class InterviewerThinking(ThinkingModule):
                 "action": "exactly_one_action_from_above"
             }}"""
         return prompt
-
-
