@@ -4,3 +4,5 @@ sentence-transformers
 kafka-python
 minio
 qdrant-client
+watchdog
+docling
