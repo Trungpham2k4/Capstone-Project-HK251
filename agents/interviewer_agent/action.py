@@ -9,6 +9,8 @@ from config import Config
 
 from agents.base_agent.action import ActionModule
 from agents.interviewer_agent.memory import InterviewerMemory
+from agents.human_agent.human_agent import HumanSupervisorCLI
+from agents.human_agent.action import InterventionType
 
 
 class InterviewerAction(ActionModule):
@@ -19,11 +21,13 @@ class InterviewerAction(ActionModule):
         storage_client: MinioService,
         llm: OpenAI,
         memory: Optional[InterviewerMemory] = None,
+        human: Optional[HumanSupervisorCLI] = None,
     ):
         self.publisher = publisher
         self.storage = storage_client
         self.llm = llm
         self.memory = memory
+        self.human = human
         self.max_iterations = 100
         self.current_iteration = 0
 
@@ -49,7 +53,9 @@ class InterviewerAction(ActionModule):
             return self.ask_question_action(message, decision)
         elif action_type == "generate_user_requirements":
             self.reset_iteration_counter()
-            return self.generate_user_requirements_list_action(message, decision)
+            return self.generate_user_requirements_list_action(
+                message, decision, auto_approve=False
+            )
         elif action_type == "evaluate_saturation":
             return self.evaluate_saturation_action(message, decision)
         elif action_type == "retrieve_interview_record":
@@ -196,7 +202,7 @@ Return ONLY the question text, nothing else."""
             }
 
     def generate_user_requirements_list_action(
-        self, message: dict, decision: dict
+        self, message: dict, decision: dict, auto_approve: bool = True
     ) -> Dict[str, Any]:
         """
         Generate User Requirements List from conversation.
@@ -255,29 +261,97 @@ Extract all distinct requirements mentioned. Return ONLY the plain text document
             print(f"[Action] Error generating requirements: {e}")
             requirements_text = f"ERROR: Failed to generate requirements\n{str(e)}"
 
-        # Store in MinIO as plain text
-        bucket = "iredev-application"
-        key = f"artifacts/user-requirements-list/user_requirements_{make_id()}.txt"
-        self.storage.put_object(bucket, key, requirements_text.encode("utf-8"))
-        if self.memory:
-            self.memory.write(requirements_text, "user-requirements-list")
+        def generate_requirements(requirements_text: str):
+            # Store in MinIO as plain text
+            bucket = "iredev-application"
+            key = f"artifacts/user-requirements-list/user_requirements_{make_id()}.txt"
+            self.storage.put_object(bucket, key, requirements_text.encode("utf-8"))
+            if self.memory:
+                self.memory.write(requirements_text, "user-requirements-list")
 
-        # Count requirements (simple heuristic)
-        req_count = requirements_text.count("REQ-")
+            # Count requirements (simple heuristic)
+            req_count = requirements_text.count("REQ-")
 
-        print(f"[Action] Generated requirements: {req_count} items")
-        print(f"[Action] Stored at: {bucket}/{key}")
+            print(f"[Action] Generated requirements: {req_count} items")
+            print(f"[Action] Stored at: {bucket}/{key}")
 
-        self.publisher.publish(
-            "artifact_events",
-            {
-                "message_id": str(uuid.uuid4()),
-                "artifact_type": "user_requirements_list",
-                "artifact_key": key,
-            },
-        )
+            self.publisher.publish(
+                "artifact_events",
+                {
+                    "message_id": str(uuid.uuid4()),
+                    "artifact_type": "user_requirements_list",
+                    "artifact_key": key,
+                },
+            )
 
-        return {"status": "complete", "action": "generate_user_requirements"}
+            return {"status": "complete", "action": "generate_user_requirements"}
+
+        def ask_question(prompt: str):
+
+            try:
+                response = self.llm.chat.completions.create(
+                    model=Config().get_llm_model_name(),
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                question = response.choices[0].message.content.strip()
+            except Exception as e:
+                print(f"[Action] Error generating question: {e}")
+                question = "Could you tell me more about your requirements?"
+
+            message = {
+                "conversation_id": "interview_session_004",
+            }
+            self._append_to_interview_record(message, question, "Interviewer")
+
+            # Create message for the question
+            message = self._make_message(
+                role="Interviewer",
+                message_type="Question",
+                content=question,
+                sent_from="Interviewer",
+                sent_to="Enduser",
+                conversation_id=message.get("conversation_id", "default_conversation"),
+            )
+
+            print(f"[Action] Asked question: {question}")
+            # Publish to Kafka
+            self.publisher.publish("interviewer_enduser", message)
+
+            return {"status": "complete", "action": "ask_question"}
+
+        def human_decide(decision: str, custom_data: str = ""):
+            if decision.lower() == "approve":
+                self.human.responses = generate_requirements(requirements_text)
+            else:
+                prompt = f"""You are an experienced requirements interviewer.
+User Requirements List:
+{requirements_text}
+
+Based on the User Requirements List above, here is the feedback:
+{custom_data}
+
+Based on the User Requirements List and the feedback above, clarify the user's needs if there is a question from the end user (1-2 sentences).
+
+Generate a single, clear, open-ended question to ask the end user to elicit more requirements.
+The question should be conversational and encouraging.
+
+Return ONLY the question text, nothing else.
+                """
+                self.human.responses = ask_question(prompt)
+            return True
+
+        if auto_approve:
+            return generate_requirements(requirements_text)
+        else:
+            self.human.human_manager.request_approval(
+                InterventionType.ACTION_APPROVAL,
+                {"question": requirements_text},
+                human_decide,
+            )
+            self.human.start()
+
+            self.human.stop()
+            return self.human.responses
 
     def evaluate_saturation_action(
         self, message: dict, decision: dict

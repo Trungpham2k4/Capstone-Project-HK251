@@ -5,12 +5,19 @@ from agents.interviewer_agent.monitor import InterviewerMonitor
 from agents.interviewer_agent.memory import InterviewerMemory
 from agents.interviewer_agent.action import InterviewerAction
 from agents.interviewer_agent.knowledge import InterviewerKnowledge
+from agents.human_agent.human_agent import HumanSupervisorCLI
 from services.kafka_service import KafkaService
 from services.minio_service import MinioService
 
 
 class InterviewerAgent(KnowledgeDrivenAgent):
-    def __init__(self, kafka_service: KafkaService, minio_service: MinioService, llm):
+    def __init__(
+        self,
+        kafka_service: KafkaService,
+        minio_service: MinioService,
+        human: HumanSupervisorCLI,
+        llm,
+    ):
         profile = InterviewerProfile()
         # knowledge = InterviewerKnowledge(host="localhost", port=6333, collection="interview_knowledge")
         memory = InterviewerMemory(collection="interviewer_memory")
@@ -20,6 +27,7 @@ class InterviewerAgent(KnowledgeDrivenAgent):
             storage_client=minio_service,
             llm=llm,
             memory=memory,
+            human=human,
         )
 
         thinking = InterviewerThinking(

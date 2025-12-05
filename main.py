@@ -3,6 +3,7 @@ from agents.interviewer_agent.interviewer_agent import InterviewerAgent
 from agents.enduser_agent.enduser_agent import EndUserAgent
 from agents.analyst_agent.analyst_agent import AnalystAgent
 from agents.archivist_agent.archivist_agent import ArchivistAgent
+from agents.human_agent.human_agent import HumanSupervisorCLI
 import time
 
 from services.kafka_service import KafkaService
@@ -28,8 +29,12 @@ def build_flow():
 
     # Create agents
     print("[Flow] Creating agents...")
+    human_manager = HumanSupervisorCLI(approval_required=True)
     interviewer = InterviewerAgent(
-        kafka_service=kafka_service, minio_service=minio_service, llm=llm_client
+        kafka_service=kafka_service,
+        minio_service=minio_service,
+        llm=llm_client,
+        human=human_manager,
     )
     enduser = EndUserAgent(
         kafka_service=kafka_service, minio_service=minio_service, llm=llm_client
